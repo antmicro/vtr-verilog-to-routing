@@ -381,10 +381,12 @@ static void validate_macros(t_pl_macro* macros, int num_macros) {
     //Verify that blocks only appear in a single macro
     std::multimap<ClusterBlockId,int> block_to_macro;
     for (int imacro = 0; imacro < num_macros; ++imacro) {
+	    vtr::printf("Macro %d\n", imacro);
         for (int imember = 0; imember < macros[imacro].num_blocks; ++imember) {
             ClusterBlockId iblk = macros[imacro].members[imember].blk_index;
 
             block_to_macro.emplace(iblk, imacro);
+	    vtr::printf(" block %d name: %s\n", iblk, cluster_ctx.clb_nlist.block_name(iblk).c_str());
         }
     }
 

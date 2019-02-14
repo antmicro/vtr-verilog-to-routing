@@ -792,8 +792,9 @@ bool primitive_type_feasible(const AtomBlockId blk_id, const t_pb_type *cur_pb_t
     if(cur_pb_type->model != atom_ctx.nlist.block_model(blk_id)) {
         //Primitive and atom do not match
         return false;
+    } else {
+        //vtr::printf("%s, physical model name: %s, atom model name: %s\n", __func__, cur_pb_type->model->name, atom_ctx.nlist.block_model(blk_id)->name, __func__);
     }
-
     VTR_ASSERT_MSG(atom_ctx.nlist.is_compressed(), "This function assumes a compresssed/non-dirty netlist");
 
 
