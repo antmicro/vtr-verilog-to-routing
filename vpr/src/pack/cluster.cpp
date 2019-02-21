@@ -626,15 +626,6 @@ allow_unrelated_clustering = false;
         std::string blk_name = atom_ctx.nlist.block_name(blk_id);
         const t_model *blk_model = atom_ctx.nlist.block_model(blk_id);
         vtr::printf("\nProcessing molecule: %s\n", blk_name.c_str());
-        std::string model(blk_model->name);
-        if (model ==  "CARRY0") {
-          vtr::printf("Bypasing %s\n", blk_name.c_str());
-          next_molecule = get_molecule_for_cluster(
-              cluster_ctx.clb_nlist.block_pb(clb_index), atom_molecules,
-              allow_unrelated_clustering, &num_unrelated_clustering_attempts,
-              cur_cluster_placement_stats_ptr, clb_inter_blk_nets, clb_index);
-          continue;
-        }
         block_pack_status = try_pack_molecule(
             cur_cluster_placement_stats_ptr, atom_molecules, next_molecule,
             primitives_list, cluster_ctx.clb_nlist.block_pb(clb_index),
