@@ -426,6 +426,7 @@ bool vpr_pack_flow(t_vpr_setup& vpr_setup, const t_arch& arch) {
             //Load the result from the .net file
             vpr_load_packing(vpr_setup, arch);
         } else {
+            vpr_pack(vpr_setup, arch);
             VTR_ASSERT(packer_opts.doPacking == STAGE_LOAD);
             //Load a previous packing from the .net file
             vpr_load_packing(vpr_setup, arch);
