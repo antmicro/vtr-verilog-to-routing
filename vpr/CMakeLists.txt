@@ -55,3 +55,14 @@ target_link_libraries(test_vpr
                         libvpr)
 
 add_test(NAME test_vpr COMMAND test_vpr --use-colour=yes)
+
+#
+# clang-format-5.0
+#
+
+add_custom_target(format-cpp
+	COMMAND find ${PROJECT_SOURCE_DIR}
+		-name '*.cpp' -print0 -name '*.h' -print0 |
+		xargs -0 -P `nproc` clang-format-5.0 -style=file -i)
+
+add_custom_target(format DEPENDS format-cpp)
