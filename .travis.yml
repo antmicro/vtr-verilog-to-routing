@@ -36,6 +36,7 @@ addons:
     - libxml++2.6-dev
     - perl
     - python
+    - python-lxml
     - texinfo
     - time
     - valgrind
