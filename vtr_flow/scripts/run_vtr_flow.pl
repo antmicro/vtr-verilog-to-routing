@@ -363,7 +363,7 @@ my $in_mode;
 
 # Read arch XML
 my $tpp      = XML::TreePP->new();
-my $xml_tree = $tpp->parsefile("$architecture_file_path");
+my $xml_tree = $tpp->parsefile($architecture_file_path);
 
 # Get lut size if undefined
 if (!defined $lut_size) {
@@ -417,6 +417,8 @@ my $vpr_postsynthesis_netlist = "";
 
 my $architecture_file_path_new = "$temp_dir$architecture_file_name";
 my $ret = `$vtr_flow_path/scripts/add_tiles.py --arch_xml $architecture_file_path > $architecture_file_path_new`;
+
+# There is no need to copy the arch decription file as it is produced by the add_tiles.py script
 #copy( "$architecture_file_path", $architecture_file_path_new );
 $architecture_file_path = $architecture_file_path_new;
 
