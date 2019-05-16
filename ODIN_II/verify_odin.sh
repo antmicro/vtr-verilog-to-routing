@@ -64,9 +64,9 @@ function exit_program() {
 	if [ -f ${NEW_RUN_DIR}/test_failures.log ]; then
 		FAIL_COUNT=$(wc -l ${NEW_RUN_DIR}/test_failures.log | cut -d ' ' -f 1)
 	fi
-	
+
 	FAILURE=$(( ${FAIL_COUNT} ))
-	
+
 	if [ "_${FAILURE}" != "_0" ]
 	then
 		echo "Failed ${FAILURE} benchmarks"
@@ -107,7 +107,7 @@ _prt_cur_arg() {
 function help() {
 
 printf "Called program with $INPUT
-	Usage: 
+	Usage:
 		${THIS_SCRIPT_EXEC} [ OPTIONS / FLAGS ]
 
 
@@ -209,7 +209,7 @@ function cleanup_temp() {
 	fi
 
 	for runs in ${OUTPUT_DIRECTORY}/run*
-	do 
+	do
 		rm -Rf ${runs}
 	done
 
@@ -267,14 +267,14 @@ function mv_failed() {
 # Helper Functions
 function flag_is_number() {
 	case "_$2" in
-		_) 
+		_)
 			echo "Passed an empty value for $1"
 			help
 			exit 120
 		;;
 		*)
 			case $2 in
-				''|*[!0-9]*) 
+				''|*[!0-9]*)
 					echo "Passed a non number value [$2] for $1"
 					help
 					exit 120
@@ -312,7 +312,7 @@ function _set_flag() {
 	_batch_sim_flag=$(_set_if ${_BATCH_SIM} "--batch")
 	_use_best_coverage_flag=$(_set_if ${_BEST_COVERAGE_OFF} "--best_coverage")
 	_perf_flag=$(_set_if ${_USE_PERF} "--tool perf")
-	
+
 	_vector_flag="-g ${_VECTORS}"
 	_timeout_flag="--time_limit ${_TIMEOUT}s"
 	_simulation_threads_flag=$([ "${_SIM_THREADS}" != "1" ] && echo "-j ${_SIM_THREADS}")
@@ -323,20 +323,20 @@ function _set_flag() {
 
 function parse_args() {
 	while [[ "$#" > 0 ]]
-	do 
-		case $1 in 
+	do
+		case $1 in
 
 		# Help Desk
 			-h|--help)
 				echo "Printing Help information"
 				help
 				exit_program
-			
+
 		## directory in benchmark
 			;;-t|--test)
 				# this is handled down stream
 				if [ "_$2" == "_" ]
-				then 
+				then
 					echo "empty argument for $1"
 					exit 120
 				fi
@@ -349,11 +349,11 @@ function parse_args() {
 			;;-a|--adder_def)
 
 				if [ "_$2" == "_" ]
-				then 
+				then
 					echo "empty argument for $1"
 					exit 120
 				fi
-				
+
 				_ADDER_DEF=$2
 
 				if [ "${_ADDER_DEF}" != "default" ] && [ "${_ADDER_DEF}" != "optimized" ] && [ ! -f "$(readlink -f ${_ADDER_DEF})" ]
@@ -367,11 +367,11 @@ function parse_args() {
 			;;-d|--output_dir)
 
 				if [ "_$2" == "_" ]
-				then 
+				then
 					echo "empty argument for $1"
 					exit 120
 				fi
-				
+
 				_RUN_DIR_OVERRIDE=$2
 
 				if [ ! -d "${_RUN_DIR_OVERRIDE}" ]
@@ -409,45 +409,45 @@ function parse_args() {
 				shift
 
 		# Boolean flags
-			;;-g|--generate_bench)		
+			;;-g|--generate_bench)
 				_GENERATE_BENCH="on"
 				echo "generating output vector for test given predefined input"
 
-			;;-o|--generate_output)		
+			;;-o|--generate_output)
 				_GENERATE_OUTPUT="on"
 				echo "generating input and output vector for test"
 
-			;;-c|--clean)				
+			;;-c|--clean)
 				echo "Cleaning temporary run in directory"
 				cleanup_temp
 
-			;;-l|--limit_ressource)		
+			;;-l|--limit_ressource)
 				_LIMIT_RESSOURCE="on"
 				echo "limiting ressources for benchmark, this can help with small hardware"
 
-			;;-v|--valgrind)			
+			;;-v|--valgrind)
 				_VALGRIND="on"
 				echo "Using Valgrind for benchmarks"
 
-			;;-B|--best_coverage_off)	
+			;;-B|--best_coverage_off)
 				_BEST_COVERAGE_OFF="off"
 				echo "turning off using best coverage for benchmark vector generation"
 
-			;;-b|--batch_sim)			
+			;;-b|--batch_sim)
 				_BATCH_SIM="on"
 				echo "Using Batch multithreaded simulation with -j threads"
 
 			;;-p|--perf)
 				_USE_PERF="on"
 				echo "Using perf for synthesis and simulation"
-			
-			;;-f|--force_simulate)   
-				_FORCE_SIM="on"
-				echo "Forcing Simulation"         
 
-			;;*) 
+			;;-f|--force_simulate)
+				_FORCE_SIM="on"
+				echo "Forcing Simulation"
+
+			;;*)
 				echo "Unknown parameter passed: $1"
-				help 
+				help
 				ctrl_c
 		esac
 		shift
@@ -477,9 +477,9 @@ function sim() {
 	shift
 
 	while [[ "$#" > 0 ]]
-	do 
+	do
 		case $1 in
-			--custom_args_file) 
+			--custom_args_file)
 				with_custom_args=1
 				;;
 
@@ -517,7 +517,7 @@ function sim() {
 
 			*)
 				echo "Unknown internal parameter passed: $1"
-				config_help 
+				config_help
 				ctrl_c
 				;;
 		esac
@@ -553,15 +553,15 @@ function sim() {
 											${_timeout_flag}
 											${_low_ressource_flag}
 											${_valgrind_flag}"
-											
+
 				if [ "${_USE_PERF}" == "on" ]
 				then
 					wrapper_odin_command="${wrapper_odin_command} ${_perf_flag} ${DIR}/perf.data"
 				fi
 
 				odin_command="${DEFAULT_CMD_PARAM}
-								$(cat ${dir}/odin.args | tr '\n' ' ') 
-								-o ${blif_file} 
+								$(cat ${dir}/odin.args | tr '\n' ' ')
+								-o ${blif_file}
 								-sim_dir ${DIR}"
 
 				echo $(echo "${wrapper_odin_command} ${odin_command}" | tr '\n' ' ' | tr -s ' ' ) > ${DIR}/odin_param
@@ -607,13 +607,6 @@ function sim() {
 
 			for arches in ${arch_list}
 			do
-
-				arch_cmd=""
-				if [ -e ${arches} ]
-				then
-					arch_cmd="-a ${arches}"
-				fi
-
 				arch_basename=${arches%.xml}
 				arch_name=${arch_basename##*/}
 
@@ -622,6 +615,14 @@ function sim() {
 				DIR="${NEW_RUN_DIR}/${TEST_FULL_REF}"
 				blif_file="${DIR}/odin.blif"
 
+				arch_cmd=""
+				if [ -e ${arches} ]
+				then
+					tiles_cmd="../vtr_flow/scripts/add_tiles.py"
+					arch_file="${arch_name}.xml"
+					${tiles_cmd} --arch_xml ${arches} > ${DIR}/${arch_name}.xml
+					arch_cmd="-a ${DIR}/${arch_name}.xml"
+				fi
 
 				#build commands
 				mkdir -p $DIR
@@ -642,6 +643,7 @@ function sim() {
 					then
 						wrapper_synthesis_command="${wrapper_synthesis_command} ${_perf_flag} ${DIR}/perf.data"
 					fi
+
 
 					synthesis_command="${DEFAULT_CMD_PARAM}
 										${arch_cmd}
@@ -712,7 +714,7 @@ function sim() {
 
 				#run the simulation
 				find ${NEW_RUN_DIR}/${bench_type}/ -name sim_param | xargs -n1 -P$threads -I sim_cmd ${SHELL} -c '$(cat sim_cmd)'
-				
+
 				# move the log
 				for sim_log in $(find ${NEW_RUN_DIR}/${bench_type}/ -name "simulation.log")
 				do
@@ -722,7 +724,7 @@ function sim() {
 				disable_failed ${global_simulation_failure}
 
 			done
-			
+
 			mkdir -p ${NEW_RUN_DIR}/${bench_type}/vectors
 
 			# move the vectors
@@ -733,7 +735,7 @@ function sim() {
 
 				cp ${sim_input_vectors} ${NEW_RUN_DIR}/${bench_type}/vectors/${BM_NAME}
 				mv ${sim_input_vectors} ${BM_DIR}/${BM_NAME}
-				
+
 			done
 
 
@@ -803,7 +805,7 @@ function debug_failures() {
 
 			echo "Which benchmark would you like to debug (type 'quit' or 'q' to exit)?"
 			echo "============"
-			echo "${FAILURES_LIST}"	
+			echo "${FAILURES_LIST}"
 			echo "============"
 			printf "enter a substring: "
 
@@ -813,7 +815,7 @@ function debug_failures() {
 					echo "exiting"
 					break
 					;;
-				*)					
+				*)
 					BM="${FAILED_RUN_DIR}/$(echo "${FAILURES_LIST}" | grep ${INPUT_BM} | tail -n 1)"
 
 					if [ "_${BM}" != "_" ] && [ -f "${BM}/${CMD_FILE_NAME}" ]
@@ -854,7 +856,7 @@ LIGHT_LIST=(
 	"operators"
 	"arch"
 	"other"
-	"micro"	
+	"micro"
 	"syntax"
 	"FIR"
 )
@@ -934,8 +936,8 @@ case ${_TEST} in
 
 	full_suite)
 		run_all
-		;;	
-		
+		;;
+
 	heavy_suite)
 		run_heavy_suite
 		;;
