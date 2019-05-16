@@ -43,49 +43,6 @@ AFTER:
 </complexblocklist>
 """
 
-"""
-This script is intended to modify the architecture description file to be compliant with
-the new format.
-
-It moves the top level pb_types attributes and tags to the tiles high-level tag.
-
-BEFORE:
-<complexblocklist>
-    <pb_type name="BRAM" area="2" height="4" width="1" capacity="1">
-        <input ... />
-        <input ... />
-        <input ... />
-        <output ... />
-        <output ... />
-        <output ... />
-        <interconnect ... />
-        <fc ... />
-        <pinlocations ... />
-        <switchblock_locations ... />
-    </pb_type>
-</complexblocklist>
-
-AFTER:
-<tiles>
-    <tile name="BRAM" area="2" height="4" width="1" capacity="1">
-        <interconnect ... />
-        <fc ... />
-        <pinlocations ... />
-        <switchblock_locations ... />
-    </tile>
-</tiles>
-<complexblocklist
-    <pb_type name="BRAM">
-        <input ... />
-        <input ... />
-        <input ... />
-        <output ... />
-        <output ... />
-        <output ... />
-    </pb_type>
-</complexblocklist>
-"""
-
 from lxml import etree as ET
 import argparse
 

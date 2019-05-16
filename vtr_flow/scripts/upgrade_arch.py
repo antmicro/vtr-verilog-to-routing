@@ -39,6 +39,7 @@ supported_upgrades = [
     "upgrade_port_equivalence",
     "upgrade_complex_sb_num_conns",
     "add_missing_comb_model_internal_timing_edges",
+    "move_top_level_pb_type_to_tiles",
 ]
 
 def parse_args():
@@ -137,6 +138,11 @@ def main():
         if result:
             modified = True
 
+    if "move_top_level_pb_type_to_tiles" in args.features:
+        result = move_top_level_pb_type_to_tiles(arch)
+        if result:
+            modified = True
+
     if modified:
         if args.debug:
             root.write(sys.stdout, pretty_print=args.pretty)
@@ -155,7 +161,7 @@ def add_model_timing(arch):
     #Find all primitive pb types
     prim_pbs = arch.findall(".//pb_type[@blif_model]")
 
-    #Build up the timing specifications from 
+    #Build up the timing specifications from
     default_models = frozenset([".input", ".output", ".latch", ".names"])
     primitive_timing_specs = {}
     for prim_pb in prim_pbs:
@@ -237,7 +243,7 @@ def upgrade_fc_overrides(arch):
             port = old_pin_override.attrib['name']
             fc_type = old_pin_override.attrib['fc_type']
             fc_val = old_pin_override.attrib['fc_val']
-            
+
             fc_tag.remove(old_pin_override)
 
             new_attrib = OrderedDict()
@@ -285,7 +291,7 @@ def upgrade_fc_overrides(arch):
                 new_attrib["fc_val"] = out_val
 
                 fc_override = ET.SubElement(fc_tag, "fc_override", attrib=new_attrib)
-        
+
             changed = True
     return changed
 
@@ -350,7 +356,7 @@ def upgrade_device_layout(arch):
         device_auto.attrib['height'] = height
     else:
         assert False, "Unrecognized <layout> specification"
-    
+
     if 0:
         for type, locs in type_to_grid_specs.iteritems():
             print "Type:", type
@@ -370,7 +376,7 @@ def upgrade_device_layout(arch):
         device_auto.text = "\n" + 2*INDENT
         device_auto.tail = "\n"
 
-    
+
     for type_name, locs in type_to_grid_specs.iteritems():
         for loc in locs:
             assert loc.tag == "loc"
@@ -408,8 +414,8 @@ def upgrade_device_layout(arch):
                 col_spec.attrib['priority'] = str(priority)
                 col_spec.tail = "\n" + 2*INDENT
 
-                #Classic VPR fills blank spaces (e.g. where a height > 1 block won't fit) with "EMPTY" 
-                #instead of with the underlying type. To replicate that we create a col spec with the same 
+                #Classic VPR fills blank spaces (e.g. where a height > 1 block won't fit) with "EMPTY"
+                #instead of with the underlying type. To replicate that we create a col spec with the same
                 #location information, but of type 'EMPTY' and with slightly lower priority than the real type.
 
                 col_empty_spec = ET.SubElement(device_auto, 'col')
@@ -451,8 +457,8 @@ def upgrade_device_layout(arch):
                 col_spec.attrib['priority'] = str(priority)
                 col_spec.tail = "\n" + 2*INDENT
 
-                #Classic VPR fills blank spaces (e.g. where a height > 1 block won't fit) with "EMPTY" 
-                #instead of with the underlying type. To replicate that we create a col spec with the same 
+                #Classic VPR fills blank spaces (e.g. where a height > 1 block won't fit) with "EMPTY"
+                #instead of with the underlying type. To replicate that we create a col spec with the same
                 #location information, but of type 'EMPTY' and with slightly lower priority than the real type.
                 col_empty_spec = ET.SubElement(device_auto, 'col')
                 col_empty_spec.attrib['type'] = "EMPTY"
@@ -496,7 +502,7 @@ def upgrade_device_layout(arch):
                 assert False, "Unrecognzied <loc> type tag {}".format(loc_type)
 
     return changed
-        
+
 def remove_io_chan_distr(arch):
     """
     Removes the legacy '<io>' channel width distribution tags
@@ -631,7 +637,7 @@ def upgrade_connection_block_input_switch(arch):
         #
         #Create the switch
         #
-        
+
         switch_name = "ipin_cblock"
 
         #Make sure the switch name doesn't already exist
@@ -673,7 +679,7 @@ def upgrade_switch_types(arch):
     assert switchlist_tag is not None
 
     for switch_tag in switchlist_tag.findall("./switch"):
-        
+
         switch_type = switch_tag.attrib['type']
 
         if switch_type in ['buffered', 'pass_trans']:
@@ -710,7 +716,7 @@ def rename_fc_attributes(arch):
 def remove_longline_sb_cb(arch):
     """
     Drops <sb> and <cb> of any <segment> types with length="longline",
-    since we now assume longlines have full switch block/connection block 
+    since we now assume longlines have full switch block/connection block
     populations
     """
 
@@ -864,6 +870,89 @@ def add_missing_comb_model_internal_timing_edges(arch):
             print >>sys.stderr, "Warning: Conservatively upgrading combinational sink dependencies for input port '{}' of model '{}' to '{}'. The user should manually check whether a reduced set of sink dependencies can be safely specified.".format(input_port_tag.attrib['name'], model_tag.attrib['name'], input_port_tag.attrib['combinational_sink_ports'])
 
             changed = True
+
+    return changed
+
+def move_top_level_pb_type_to_tiles(arch):
+    """
+    This script is intended to modify the architecture description file to be compliant with
+    the new format.
+
+    It moves the top level pb_types attributes and tags to the tiles high-level tag.
+
+    BEFORE:
+    <complexblocklist>
+        <pb_type name="BRAM" area="2" height="4" width="1" capacity="1">
+            <input ... />
+            <input ... />
+            <input ... />
+            <output ... />
+            <output ... />
+            <output ... />
+            <interconnect ... />
+            <fc ... />
+            <pinlocations ... />
+            <switchblock_locations ... />
+        </pb_type>
+    </complexblocklist>
+
+    AFTER:
+    <tiles>
+        <tile name="BRAM" area="2" height="4" width="1" capacity="1">
+            <interconnect ... />
+            <fc ... />
+            <pinlocations ... />
+            <switchblock_locations ... />
+        </tile>
+    </tiles>
+    <complexblocklist
+        <pb_type name="BRAM">
+            <input ... />
+            <input ... />
+            <input ... />
+            <output ... />
+            <output ... />
+            <output ... />
+        </pb_type>
+    </complexblocklist>
+    """
+
+    changed = False
+
+    TAGS_TO_SWAP = ['fc', 'pinlocations', 'switchblock_locations']
+    ATTR_TO_REMOVE = ['area', 'height', 'width', 'capacity']
+
+    def swap_tags(tile, pb_type):
+        # Moving tags from top level pb_type to tile
+        for child in pb_type:
+            if child.tag in TAGS_TO_SWAP:
+                pb_type.remove(child)
+                tile.append(child)
+
+    tiles = arch.find('tiles')
+
+    if tiles is None:
+        tiles = ET.SubElement(arch, 'tiles')
+
+        top_pb_types = []
+        for pb_type in arch.iter('pb_type'):
+            if pb_type.getparent().tag == 'complexblocklist':
+                top_pb_types.append(pb_type)
+
+        for pb_type in top_pb_types:
+            tile = ET.SubElement(tiles, 'tile')
+            attrs = pb_type.attrib
+
+            for attr in attrs:
+                tile.set(attr, pb_type.get(attr))
+
+            # Remove attributes of top level pb_types only
+            for attr in ATTR_TO_REMOVE:
+                pb_type.attrib.pop(attr, None)
+
+            swap_tags(tile, pb_type)
+
+        changed = True
 
     return changed
 
