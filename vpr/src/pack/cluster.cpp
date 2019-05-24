@@ -117,6 +117,7 @@ struct t_molecule_stats {
     int num_used_ext_outputs = 0;  //Number of *used external* output pins across all primitives in molecule
 };
 
+
 /* Keeps a linked list of the unclustered blocks to speed up looking for *
  * unclustered blocks with a certain number of *external* inputs.        *
  * [0..lut_size].  Unclustered_list_head[i] points to the head of the    *
@@ -607,11 +608,15 @@ std::map<t_type_ptr,size_t> do_clustering(const t_packer_opts& packer_opts, cons
             VTR_LOGV(verbosity == 2, "\n");
 
 			if (detailed_routing_stage == (int)E_DETAILED_ROUTE_AT_END_ONLY) {
-				// FIXME: is_mode_conflict does not affect this stage. It will be needed when trying to route the packed clusters later on.
-				bool is_mode_conflict;
-				reset_intra_lb_route(router_data);
-				is_cluster_legal = try_intra_lb_route(router_data, packer_opts.pack_verbosity, &is_mode_conflict);
-				if (is_cluster_legal == true) {
+				/* is_mode_conflict does not affect this stage. It is needed when trying to route the packed clusters.
+				 *
+				 * It holds a flag that is used to verify whether try_intra_lb_route ended in a mode conflict issue.
+				 * If the value is TRUE the cluster has to be repacked, and its internal pb_graph_nodes will have more restrict choices
+				 * for what regards the mode that has to be selected
+				 */
+				t_mode_selection_status mode_status;
+				is_cluster_legal = try_intra_lb_route(router_data, packer_opts.pack_verbosity, &mode_status);
+				if (is_cluster_legal) {
                     VTR_LOGV(verbosity > 2, "\tPassed route at end.\n");
 				} else {
 					VTR_LOGV(verbosity > 0, "Failed route at end, repack cluster trying detailed routing at each stage.\n");
@@ -1170,15 +1175,43 @@ static enum e_block_pack_status try_pack_molecule(
 				}
 			}
 			if (block_pack_status == BLK_PASSED) {
-				/* Try to route if heuristic is to route for every atom
-					Skip routing if heuristic is to route at the end of packing complex block
-				*/
-				bool is_mode_conflict = true;
+				/*
+				 * during the clustering step of `do_clustering`, `detailed_routing_stage` is incremented at each iteration until it a cluster
+				 * is correctly generated or `detailed_routing_stage` assumes an invalid value (E_DETAILED_ROUTE_INVALID).
+				 * depending on its value we have different behaviors:
+				 *	- E_DETAILED_ROUTE_AT_END_ONLY:	Skip routing if heuristic is to route at the end of packing complex block.
+				 *	- E_DETAILED_ROUTE_FOR_EACH_ATOM: Try to route if heuristic is to route for every atom. If the clusterer arrives at this stage,
+				 *	                                  it means that more checks have to be performed as the previous stage failed to generate a new cluster.
+				 *
+				 * mode_status is a data structure containing the status of the mode selection. Its members are:
+				 *  - bool is_mode_conflict
+				 *  - bool try_expand_all_modes
+				 *  - bool expand_all_modes
+				 *
+				 * is_mode_conflict affects this stage. Its value determines whether the cluster failed to pack after a mode conflict issue.
+				 * It holds a flag that is used to verify whether try_intra_lb_route ended in a mode conflict issue.
+				 *
+				 * Until is_mode_conflict is set to FALSE by try_intra_lb_route, the loop re-iterates. If all the available modes are exhausted
+				 * an error will be thrown during mode conflicts checks (this to prevent infinite loops).
+				 *
+				 * If the value is TRUE the cluster has to be re-routed, and its internal pb_graph_nodes will have more restrict choices
+				 * for what regards the mode that has to be selected.
+				 *
+				 * is_mode_conflict is initially set to TRUE, and, unless a mode conflict is found, it is set to false in `try_intra_lb_route`.
+				 *
+				 * try_expand_all_modes is set if the node expansion failed to find a valid routing path. The clusterer tries to find another route
+				 * by using all the modes during node expansion.
+				 *
+				 * expand_all_modes is used to enable the expansion of all the nodes using all the possible modes.
+				 */
+				t_mode_selection_status mode_status;
 				bool is_routed = false;
 				bool do_detailed_routing_stage = detailed_routing_stage == (int)E_DETAILED_ROUTE_FOR_EACH_ATOM;
-				reset_intra_lb_route(router_data);
-				while (do_detailed_routing_stage && is_mode_conflict) {
-					is_routed = try_intra_lb_route(router_data, verbosity, &is_mode_conflict);
+				if (do_detailed_routing_stage) {
+					do {
+						reset_intra_lb_route(router_data);
+						is_routed = try_intra_lb_route(router_data, verbosity, &mode_status);
+					} while (do_detailed_routing_stage && mode_status.is_mode_issue());
 				}
 
 				if (do_detailed_routing_stage && is_routed == false) {
@@ -2321,7 +2354,7 @@ static t_molecule_stats calc_molecule_stats(const t_pack_molecule* molecule) {
 
         ++molecule_stats.num_blocks; //Record number of valid blocks in molecule
 
-        
+
         const t_model* model = atom_ctx.nlist.block_model(blk);
 
         for (const t_model_ports* input_port = model->inputs; input_port != nullptr; input_port = input_port->next) {
@@ -2338,9 +2371,9 @@ static t_molecule_stats calc_molecule_stats(const t_pack_molecule* molecule) {
     std::set<AtomBlockId> molecule_atoms(molecule->atom_block_ids.begin(), molecule->atom_block_ids.end());
     for (auto blk : molecule->atom_block_ids) {
         if (!blk) continue;
-        
+
         for (auto pin : atom_ctx.nlist.block_pins(blk)) {
-            
+
             auto net = atom_ctx.nlist.pin_net(pin);
 
             auto pin_type = atom_ctx.nlist.pin_type(pin);
@@ -2428,7 +2461,7 @@ static std::vector<AtomBlockId> initialize_seed_atoms(const e_cluster_seed seed_
 
     } else if (seed_type == e_cluster_seed::MAX_INPUTS) {
 
-        //By number of used molecule input pins 
+        //By number of used molecule input pins
         for (auto blk : atom_ctx.nlist.blocks()) {
 
             int max_molecule_inputs = 0;
@@ -2492,7 +2525,7 @@ static std::vector<AtomBlockId> initialize_seed_atoms(const e_cluster_seed seed_
                     molecule_pins = molecule_stats.num_pins;
                 } else {
                     VTR_ASSERT(seed_type == e_cluster_seed::MAX_INPUT_PINS);
-                    //Input pins only 
+                    //Input pins only
                     molecule_pins = molecule_stats.num_input_pins;
                 }
 
