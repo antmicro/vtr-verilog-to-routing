@@ -25,6 +25,8 @@ OTHER DEALINGS IN THE SOFTWARE.
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <string>
+
 #include "odin_types.h"
 #include "odin_globals.h"
 
@@ -89,7 +91,7 @@ int type_of_circuit;
 /* PROTOTYPES */
 void create_param_table_for_module(ast_node_t* parent_parameter_list, ast_node_t *module_items, char *module_name, char *parent_module);
 
-void convert_ast_to_netlist_recursing_via_modules(ast_node_t* current_module, char *instance_name, int level);
+void convert_ast_to_netlist_recursing_via_modules(ast_node_t** current_module, char *instance_name, int level);
 signal_list_t *netlist_expand_ast_of_module(ast_node_t* node, char *instance_name_prefix);
 
 void create_all_driver_nets_in_this_module(char *instance_name_prefix);
@@ -367,10 +369,6 @@ void create_netlist()
 		oassert(ast_modules[i]->type == MODULE);
 	}
 
-
-	// TODO Alex - unroll_loops() needs to be moved to simplify_ast_module()
-	simplify_ast();
-
 	/* we will find the top module */
 	top_module = find_top_module();
 
@@ -393,7 +391,7 @@ void create_netlist()
 	/* now recursively parse the modules by going through the tree of modules starting at top */
 	create_top_driver_nets(top_module, top_string);
 	init_implicit_memory_index();
-	convert_ast_to_netlist_recursing_via_modules(top_module, top_string, 0);
+	convert_ast_to_netlist_recursing_via_modules(&top_module, top_string, 0);
 	free_implicit_memory_index_and_finalize_memories();
 	create_top_output_nodes(top_module, top_string);
 
@@ -428,6 +426,8 @@ ast_node_t *find_top_module()
 	int j;
 	long sc_spot;
 	int found_top = -1;
+	long number_of_top_modules = 0;
+
 
 	/* go through all the instantiations for each module and mark them if they've be instantiated */
 	for (i = 0; i < num_modules; i++)
@@ -457,25 +457,65 @@ ast_node_t *find_top_module()
 	}
 
 	/* now check for which module wasn't marked...this one will be the top */
-	for (i = 0; i < num_modules; i++)
+	std::string module_name_list("");
+	std::string desired_module("");
+	bool found_desired_module = false;
+
+	if ( global_args.top_level_module_name )
 	{
-		if ((ast_modules[i]->types.module.is_instantiated == FALSE) && (found_top == -1))
-		{
-			found_top = i;
+		desired_module = global_args.top_level_module_name;
+		printf("Using Top Level Module: %s\n", desired_module.c_str());
+	}
+
+	for (i = 0; i < num_modules ; i++)
+	{
+		std::string current_module = "";
+
+		if( ast_modules[i]->children[0]->types.identifier )
+		{	
+			current_module = ast_modules[i]->children[0]->types.identifier;
 		}
-		else if ((ast_modules[i]->types.module.is_instantiated == FALSE) && (found_top != -1))
+
+		if( desired_module != "" && current_module == desired_module)
 		{
-			error_message(NETLIST_ERROR, ast_modules[i]->line_number, ast_modules[i]->file_number, "%s",
-					"Two top level modules - Odin II cannot deal with these types of designs\n");
+			// append the name
+			module_name_list = std::string("\t") + current_module;
+			found_top = i;
+			found_desired_module = true;
+			break;
+		}
+		else if ((ast_modules[i]->types.module.is_instantiated == FALSE))
+		{
+			// append the name
+			module_name_list += std::string("\t") + current_module;
+
+			if(number_of_top_modules > 0)
+				module_name_list += "\n";
+
+			number_of_top_modules += 1;
+			found_top = i;
 		}
 	}
 
 	/* check atleast one module is top ... and only one */
-	if (found_top == -1)
+	if(!found_desired_module && desired_module != "")
+	{
+		warning_message(NETLIST_ERROR, -1, -1, "Could not find the desired top level module: %s\n", desired_module.c_str());
+	}
+
+	if (number_of_top_modules < 1)
 	{
 		error_message(NETLIST_ERROR, -1, -1, "%s", "Could not find a top level module\n");
 	}
-
+	else if(number_of_top_modules > 1)
+	{
+		error_message(NETLIST_ERROR, -1, -1, "Found multiple top level modules\n%s", module_name_list.c_str());
+	}
+	else
+	{
+		printf("==========================\nDetected Top Level Module: %s\n==========================\n", module_name_list.c_str());
+	}
+	
 	return ast_modules[found_top];
 }
 
@@ -484,16 +524,16 @@ ast_node_t *find_top_module()
  * 	Recurses through modules by depth first traversal of the tree of modules.  Expands
  * 	the netlists at each level.
  *-------------------------------------------------------------------------------------------*/
-void convert_ast_to_netlist_recursing_via_modules(ast_node_t* current_module, char *instance_name, int level)
+void convert_ast_to_netlist_recursing_via_modules(ast_node_t** current_module, char *instance_name, int level)
 {
 	signal_list_t *list = NULL;
 	simplify_ast_module(current_module);
 
 	/* BASE CASE is when there are no other instantiations of modules in this module */
-	if (current_module->types.module.size_module_instantiations == 0 &&
-		current_module->types.function.size_function_instantiations == 0)
+	if ((*current_module)->types.module.size_module_instantiations == 0 &&
+		(*current_module)->types.function.size_function_instantiations == 0)
 	{
-		list = netlist_expand_ast_of_module(current_module, instance_name);
+		list = netlist_expand_ast_of_module(*current_module, instance_name);
 	}
 	else
 	{
@@ -501,32 +541,32 @@ void convert_ast_to_netlist_recursing_via_modules(ast_node_t* current_module, ch
 		long i, j;
 		int k;
 		//check for defparam
-		for(i = 0; i <current_module->num_children; i++)
+		for(i = 0; i <(*current_module)->num_children; i++)
 		{
-			if(current_module->children[i]->type == MODULE_ITEMS || current_module->children[i]->type == FUNCTION_ITEMS)
+			if((*current_module)->children[i]->type == MODULE_ITEMS || (*current_module)->children[i]->type == FUNCTION_ITEMS)
 			{
-				for(j = 0; j < current_module->children[i]->num_children; j++)
+				for(j = 0; j < (*current_module)->children[i]->num_children; j++)
 				{
-					if(current_module->children[i]->children[j]->type == MODULE_PARAMETER)
+					if((*current_module)->children[i]->children[j]->type == MODULE_PARAMETER)
 					{
 						int flag = 0;
-						for(k = 0; k < current_module->types.module.size_module_instantiations; k++)
+						for(k = 0; k < (*current_module)->types.module.size_module_instantiations; k++)
 						{
-							if(current_module->types.module.module_instantiations_instance[k]->children[1])
+							if((*current_module)->types.module.module_instantiations_instance[k]->children[1])
 							{
-								ast_node_t *module_instance = current_module->types.module.module_instantiations_instance[k]->children[1];
-								if(strcmp(module_instance->children[0]->types.identifier, current_module->children[i]->children[j]->types.identifier) == 0)
+								ast_node_t *module_instance = (*current_module)->types.module.module_instantiations_instance[k]->children[1];
+								if(strcmp(module_instance->children[0]->types.identifier, (*current_module)->children[i]->children[j]->types.identifier) == 0)
 								{
 
 									if(module_instance->children[2])
 									{
-										move_ast_node(current_module->children[i], module_instance->children[2], current_module->children[i]->children[j]);
+										move_ast_node((*current_module)->children[i], module_instance->children[2], (*current_module)->children[i]->children[j]);
 									}
 									else
 									{
 										ast_node_t* new_node = create_node_w_type(MODULE_PARAMETER_LIST, module_instance->line_number, current_parse_file);
 										module_instance->children[2] = new_node;
-										move_ast_node(current_module->children[i], module_instance->children[2], current_module->children[i]->children[j]);
+										move_ast_node((*current_module)->children[i], module_instance->children[2], (*current_module)->children[i]->children[j]);
 									}
 									flag = 1;
 									break;
@@ -535,81 +575,81 @@ void convert_ast_to_netlist_recursing_via_modules(ast_node_t* current_module, ch
 						}
 						if(flag == 0)
 						{
-							error_message(NETLIST_ERROR, current_module->line_number, current_module->file_number,
-									"Can't find module name %s\n", current_module->children[i]->children[j]->types.identifier);
+							error_message(NETLIST_ERROR, (*current_module)->line_number, (*current_module)->file_number,
+									"Can't find module name %s\n", (*current_module)->children[i]->children[j]->types.identifier);
 						}
 					}
 				}
 			}
 		}
-		for (k = 0; k < current_module->types.module.size_module_instantiations; k++)
+		for (k = 0; k < (*current_module)->types.module.size_module_instantiations; k++)
 		{
 			/* make the stringed up module instance name - instance name is
 			 * MODULE_INSTANCE->MODULE_NAMED_INSTANCE(child[1])->IDENTIFIER(child[0]).
 			 * module name is MODULE_INSTANCE->IDENTIFIER(child[0])
 			 */
 			char *temp_instance_name = make_full_ref_name(instance_name,
-					current_module->types.module.module_instantiations_instance[k]->children[0]->types.identifier,
-					current_module->types.module.module_instantiations_instance[k]->children[1]->children[0]->types.identifier,
+					(*current_module)->types.module.module_instantiations_instance[k]->children[0]->types.identifier,
+					(*current_module)->types.module.module_instantiations_instance[k]->children[1]->children[0]->types.identifier,
 					NULL, -1);
 
 			long sc_spot;
 			/* lookup the name of the module associated with this instantiated point */
-			if ((sc_spot = sc_lookup_string(module_names_to_idx, current_module->types.module.module_instantiations_instance[k]->children[0]->types.identifier)) == -1)
+			if ((sc_spot = sc_lookup_string(module_names_to_idx, (*current_module)->types.module.module_instantiations_instance[k]->children[0]->types.identifier)) == -1)
 			{
-				error_message(NETLIST_ERROR, current_module->line_number, current_module->file_number,
-						"Can't find module name %s\n", current_module->types.module.module_instantiations_instance[k]->children[0]->types.identifier);
+				error_message(NETLIST_ERROR, (*current_module)->line_number, (*current_module)->file_number,
+						"Can't find module name %s\n", (*current_module)->types.module.module_instantiations_instance[k]->children[0]->types.identifier);
 			}
 
-			ast_node_t *parent_parameter_list = current_module->types.module.module_instantiations_instance[k]->children[1]->children[2];
+			ast_node_t *parent_parameter_list = (*current_module)->types.module.module_instantiations_instance[k]->children[1]->children[2];
 			// create the parameter table for the instantiated module
 			create_param_table_for_module(parent_parameter_list,
 				/* module_items */
 				((ast_node_t*)module_names_to_idx->data[sc_spot])->children[2],
-				temp_instance_name, current_module->children[0]->types.identifier);
+				temp_instance_name, (*current_module)->children[0]->types.identifier);
 
 			/* recursive call point */
-			convert_ast_to_netlist_recursing_via_modules(((ast_node_t*)module_names_to_idx->data[sc_spot]), temp_instance_name, level+1);
+			convert_ast_to_netlist_recursing_via_modules(((ast_node_t**)&module_names_to_idx->data[sc_spot]), temp_instance_name, level+1);
 
 			/* free the string */
 			vtr::free(temp_instance_name);
 		}
-        for (k = 0; k < current_module->types.function.size_function_instantiations; k++)
+        for (k = 0; k < (*current_module)->types.function.size_function_instantiations; k++)
 		{
 			/* make the stringed up module instance name - instance name is
 			 * MODULE_INSTANCE->MODULE_NAMED_INSTANCE(child[1])->IDENTIFIER(child[0]).
 			 * module name is MODULE_INSTANCE->IDENTIFIER(child[0])
 			 */
 			char *temp_instance_name = make_full_ref_name(instance_name,
-					current_module->types.function.function_instantiations_instance[k]->children[0]->types.identifier,
-					current_module->types.function.function_instantiations_instance[k]->children[1]->children[0]->types.identifier,
+					(*current_module)->types.function.function_instantiations_instance[k]->children[0]->types.identifier,
+					(*current_module)->types.function.function_instantiations_instance[k]->children[1]->children[0]->types.identifier,
 					NULL, -1);
 
             long sc_spot;
 			/* lookup the name of the module associated with this instantiated point */
-			if ((sc_spot = sc_lookup_string(module_names_to_idx, current_module->types.function.function_instantiations_instance[k]->children[0]->types.identifier)) == -1)
+			if ((sc_spot = sc_lookup_string(module_names_to_idx, (*current_module)->types.function.function_instantiations_instance[k]->children[0]->types.identifier)) == -1)
 			{
-				error_message(NETLIST_ERROR, current_module->line_number, current_module->file_number,
-						"Can't find module name %s\n", current_module->types.function.function_instantiations_instance[k]->children[0]->types.identifier);
+				error_message(NETLIST_ERROR, (*current_module)->line_number, (*current_module)->file_number,
+						"Can't find module name %s\n", (*current_module)->types.function.function_instantiations_instance[k]->children[0]->types.identifier);
 			}
 
-			ast_node_t *parent_parameter_list = current_module->types.function.function_instantiations_instance[k]->children[1]->children[2];
+			ast_node_t *parent_parameter_list = (*current_module)->types.function.function_instantiations_instance[k]->children[1]->children[2];
 
 			// create the parameter table for the instantiated module
 			create_param_table_for_module(parent_parameter_list,
 				/* module_items */
 				((ast_node_t*)module_names_to_idx->data[sc_spot])->children[2],
-				temp_instance_name, current_module->children[0]->types.identifier);
+				temp_instance_name, (*current_module)->children[0]->types.identifier);
 
 			/* recursive call point */
-			convert_ast_to_netlist_recursing_via_modules(((ast_node_t*)module_names_to_idx->data[sc_spot]), temp_instance_name, level+1);
+			convert_ast_to_netlist_recursing_via_modules(((ast_node_t**)&module_names_to_idx->data[sc_spot]), temp_instance_name, level+1);
 
 			/* free the string */
 			vtr::free(temp_instance_name);
 		}
 
 		/* once we've done everyone lower, we can do this module */
-		list = netlist_expand_ast_of_module(current_module, instance_name);
+		list = netlist_expand_ast_of_module(*current_module, instance_name);
 	}
 
 	if (list) free_signal_list(list);
@@ -712,6 +752,28 @@ signal_list_t *netlist_expand_ast_of_module(ast_node_t* node, char *instance_nam
 							child_skip_list[i] = TRUE;
 						}
 
+					}
+				}
+				break;
+			case BLOCK:
+				if (node->num_children > 0)
+				{
+					for (i = 0; i < node->num_children; i++)
+					{
+						if (node->children[i]->type == MODULE_INSTANCE)
+						{
+							
+                            /* we deal with instantiations of modules twice to alias input and output nets.  In this
+							 * pass we are looking for any drivers emerging from a module */
+                            long j;
+                            for(j = 0; j < node->children[i]->num_children; j++){
+							    /* make the aliases for all the drivers as they're passed through modules */
+							    connect_module_instantiation_and_alias(INSTANTIATE_DRIVERS, node->children[i]->children[j], instance_name_prefix);
+                            }
+
+                            /* is a call site for another module.  Alias names to nets and pins */
+							child_skip_list[i] = TRUE;
+						}
 					}
 				}
 				break;
@@ -962,6 +1024,19 @@ signal_list_t *netlist_expand_ast_of_module(ast_node_t* node, char *instance_nam
 				return_sig_list = create_operation_node(node, children_signal_list, node->num_children, instance_name_prefix);
 				break;
 			case BLOCK:
+				if (node->num_children > 0)
+				{
+					for (i = 0; i < node->num_children; i++)
+					{
+						if (node->children[i]->type == MODULE_INSTANCE){
+							long j;
+							for(j = 0; j < node->children[i]->num_children; j++){
+							/* make the aliases for all the drivers as they're passed through modules */
+							connect_module_instantiation_and_alias(ALIAS_INPUTS, node->children[i]->children[j], instance_name_prefix);
+							}
+						}
+					}
+				}
 				return_sig_list = combine_lists(children_signal_list, node->num_children);
 				break;
 			case RAM:
@@ -1814,7 +1889,7 @@ void create_symbol_table_for_module(ast_node_t* module_items, char * /*module_na
 					vtr::free(temp_string);
 				}
 			}
-		if(module_items->children[i]->type == ASSIGN)
+			if(module_items->children[i]->type == ASSIGN)
 			{
 				if((module_items->children[i]->children[0]) && (module_items->children[i]->children[0]->type == BLOCKING_STATEMENT))
 				{
@@ -2108,6 +2183,7 @@ void connect_memory_and_alias(ast_node_t* hb_instance, char *instance_name_prefi
 					{
 						/* already exists so we'll join the nets */
 						combine_nets((nnet_t*)input_nets_sc->data[sc_spot_input_old], (nnet_t*)input_nets_sc->data[sc_spot_input_new], verilog_netlist);
+						input_nets_sc->data[sc_spot_input_old] = NULL;
 					}
 				}
 				else
@@ -2121,6 +2197,7 @@ void connect_memory_and_alias(ast_node_t* hb_instance, char *instance_name_prefi
 					   then join the inputs and output */
 					in_net->name = net->name;
 					combine_nets(net, in_net, verilog_netlist);
+					net = NULL;
 
 					/* since the driver net is deleted,
 					   copy the spot of the in_net over */
@@ -2259,6 +2336,7 @@ void connect_hard_block_and_alias(ast_node_t* hb_instance, char *instance_name_p
 					{
 						/* already exists so we'll join the nets */
 						combine_nets((nnet_t*)input_nets_sc->data[sc_spot_input_old], (nnet_t*)input_nets_sc->data[sc_spot_input_new], verilog_netlist);
+						input_nets_sc->data[sc_spot_input_old] = NULL;
 					}
 				}
 				else
@@ -2275,6 +2353,7 @@ void connect_hard_block_and_alias(ast_node_t* hb_instance, char *instance_name_p
 					{
 						in_net->name = net->name;
 						combine_nets(net, in_net, verilog_netlist);
+						net = NULL;
 
 
 						/* since the driver net is deleted,
@@ -2501,6 +2580,7 @@ void connect_module_instantiation_and_alias(short PASS, ast_node_t* module_insta
 					{
 						/* already exists so we'll join the nets */
 						combine_nets((nnet_t*)input_nets_sc->data[sc_spot_input_old], (nnet_t*)input_nets_sc->data[sc_spot_input_new], verilog_netlist);
+						input_nets_sc->data[sc_spot_input_old] = NULL;
 					}
 				}
 				else
@@ -2513,7 +2593,7 @@ void connect_module_instantiation_and_alias(short PASS, ast_node_t* module_insta
 					{
 						/* if they haven't been combined already, then join the inputs and output */
 						join_nets(net, in_net);
-						free_nnet(in_net);
+						in_net = free_nnet(in_net);
 						/* since the driver net is deleted, copy the spot of the in_net over */
 						input_nets_sc->data[sc_spot_input_old] = (void*)net;
 					}
@@ -2521,6 +2601,7 @@ void connect_module_instantiation_and_alias(short PASS, ast_node_t* module_insta
 					{
 						/* if they haven't been combined already, then join the inputs and output */
 						combine_nets(net, in_net, verilog_netlist);
+						net = NULL;
 						/* since the driver net is deleted, copy the spot of the in_net over */
 						output_nets_sc->data[sc_spot_output] = (void*)in_net;
 					}
@@ -2612,7 +2693,7 @@ void connect_module_instantiation_and_alias(short PASS, ast_node_t* module_insta
 
 				/* clean up input_new_net */
 				if (!(input_new_net) || !(input_new_net->driver_pin))
-					free_nnet(input_new_net);
+					input_new_net = free_nnet(input_new_net);
 
 				/* add this alias for the net */
 				output_nets_sc->data[sc_spot_input_new] = output_nets_sc->data[sc_spot_output];
@@ -2836,6 +2917,7 @@ signal_list_t *connect_function_instantiation_and_alias(short PASS, ast_node_t* 
 					    {
 						    /* already exists so we'll join the nets */
 						    combine_nets((nnet_t*)input_nets_sc->data[sc_spot_input_old], (nnet_t*)input_nets_sc->data[sc_spot_input_new], verilog_netlist);
+					   		input_nets_sc->data[sc_spot_input_old] = NULL;
 					    }
 				    }
 				    else
@@ -2848,7 +2930,7 @@ signal_list_t *connect_function_instantiation_and_alias(short PASS, ast_node_t* 
 					    {
 						    /* if they haven't been combined already, then join the inputs and output */
 						    join_nets(net, in_net);
-							free_nnet(in_net);
+							in_net = free_nnet(in_net);
 						    /* since the driver net is deleted, copy the spot of the in_net over */
 						    input_nets_sc->data[sc_spot_input_old] = (void*)net;
 					    }
@@ -2856,6 +2938,7 @@ signal_list_t *connect_function_instantiation_and_alias(short PASS, ast_node_t* 
 					    {
 						    /* if they haven't been combined already, then join the inputs and output */
 						    combine_nets(net, in_net, verilog_netlist);
+							net = NULL;
 						    /* since the driver net is deleted, copy the spot of the in_net over */
 						    output_nets_sc->data[sc_spot_output] = (void*)in_net;
 					    }
@@ -2963,7 +3046,7 @@ signal_list_t *connect_function_instantiation_and_alias(short PASS, ast_node_t* 
 				
 				/* clean up input_new_net */
 				if (!(input_new_net) || !(input_new_net->driver_pin))
-					free_nnet(input_new_net);
+					input_new_net = free_nnet(input_new_net);
 
 				/* add this alias for the net */
 				output_nets_sc->data[sc_spot_input_new] = output_nets_sc->data[sc_spot_output];
@@ -3078,6 +3161,7 @@ signal_list_t *create_pins(ast_node_t* var_declare, char *name, char *instance_n
 					/* IF - the input and output nets don't match, then they need to be joined */
 
 					combine_nets(net, (nnet_t*)input_nets_sc->data[sc_spot], verilog_netlist);
+					net = NULL;
 					/* since the driver net is deleted, copy the spot of the in_net over */
 					output_nets_sc->data[sc_spot_output] = (void*)input_nets_sc->data[sc_spot];
 				}
@@ -5036,7 +5120,7 @@ signal_list_t *create_dual_port_ram_block(ast_node_t* block, char *instance_name
 					block->children[1]->children[0]->types.identifier,
 					ip_name, -1);
 
-			t_memory_port_sizes *ps = (t_memory_port_sizes *)vtr::malloc(sizeof(t_memory_port_sizes));
+			t_memory_port_sizes *ps = (t_memory_port_sizes *)vtr::calloc(1, sizeof(t_memory_port_sizes));
 			ps->size = out_port_size;
 			ps->name = alias_name;
 			memory_port_size_list = insert_in_vptr_list(memory_port_size_list, ps);
@@ -5223,7 +5307,7 @@ signal_list_t *create_single_port_ram_block(ast_node_t* block, char *instance_na
 					block->children[1]->children[0]->types.identifier,
 					ip_name, -1
 			);
-			t_memory_port_sizes *ps = (t_memory_port_sizes *)vtr::malloc(sizeof(t_memory_port_sizes));
+			t_memory_port_sizes *ps = (t_memory_port_sizes *)vtr::calloc(1, sizeof(t_memory_port_sizes));
 			ps->size = out_port_size;
 			ps->name = alias_name;
 			memory_port_size_list = insert_in_vptr_list(memory_port_size_list, ps);
@@ -5360,7 +5444,7 @@ signal_list_t *create_soft_single_port_ram_block(ast_node_t* block, char *instan
 					block->children[1]->children[0]->types.identifier,
 					block_connect->types.identifier, -1
 			);
-			t_memory_port_sizes *ps = (t_memory_port_sizes *)vtr::malloc(sizeof(t_memory_port_sizes));
+			t_memory_port_sizes *ps = (t_memory_port_sizes *)vtr::calloc(1, sizeof(t_memory_port_sizes));
 			ps->size = out_port_size;
 			ps->name = alias_name;
 			memory_port_size_list = insert_in_vptr_list(memory_port_size_list, ps);
@@ -5526,7 +5610,7 @@ signal_list_t *create_soft_dual_port_ram_block(ast_node_t* block, char *instance
 			allocate_more_output_pins(block_node, port_size);
 			add_output_port_information(block_node, port_size);
 
-			t_memory_port_sizes *ps = (t_memory_port_sizes *)vtr::malloc(sizeof(t_memory_port_sizes));
+			t_memory_port_sizes *ps = (t_memory_port_sizes *)vtr::calloc(1, sizeof(t_memory_port_sizes));
 			ps->size = port_size;
 			ps->name = vtr::strdup(alias_name);
 			memory_port_size_list = insert_in_vptr_list(memory_port_size_list, ps);
