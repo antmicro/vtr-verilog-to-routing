@@ -1608,7 +1608,8 @@ static void ProcessMode(pugi::xml_node Parent, t_mode* mode, const bool timing_e
     map<string, int> pb_type_names;
     pair<map<string, int>::iterator, bool> ret_pb_types;
 
-    if (0 == strcmp(Parent.name(), "pb_type")) {
+    bool implied_mode = 0 == strcmp(Parent.name(), "pb_type");
+    if (implied_mode) {
         /* implied mode */
         mode->name = vtr::strdup("default");
     } else {
@@ -1646,7 +1647,11 @@ static void ProcessMode(pugi::xml_node Parent, t_mode* mode, const bool timing_e
     /* Allocate power structure */
     mode->mode_power = (t_mode_power*)vtr::calloc(1, sizeof(t_mode_power));
 
-    mode->meta = ProcessMetadata(Parent, loc_data);
+    if (!implied_mode) {
+        // Implied mode metadata is attached to the pb_type, rather than
+        // the t_mode object.
+        mode->meta = ProcessMetadata(Parent, loc_data);
+    }
 
     /* Clear STL map used for duplicate checks */
     pb_type_names.clear();
