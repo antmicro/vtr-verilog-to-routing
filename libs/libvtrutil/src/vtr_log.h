@@ -1,6 +1,8 @@
 #ifndef VTR_LOG_H
 #define VTR_LOG_H
 #include <tuple>
+#include <unordered_set>
+#include <string>
 
 /*
  * This header defines useful logging macros for VTR projects.
@@ -71,20 +73,29 @@
 #define VTR_LOGF_ERROR(file, line, ...) VTR_LOGVF_ERROR(true, file, line, __VA_ARGS__)
 #define VTR_LOGF_NOP(file, line, ...) VTR_LOGVF_NOP(true, file, line, __VA_ARGS__)
 
+//Custom file-line-func location logging macros
+#define VTR_LOGFF_WARN(file, line, func, ...) VTR_LOGVFF_WARN(true, file, line, func, __VA_ARGS__)
+
 //Conditional logging and custom file-line location macros
 #define VTR_LOGVF(expr, file, line, ...)    \
     do {                                    \
         if (expr) vtr::printf(__VA_ARGS__); \
     } while (false)
 
-#define VTR_LOGVF_WARN(expr, file, line, ...)                   \
-    do {                                                        \
-        if (expr) vtr::printf_warning(file, line, __VA_ARGS__); \
+#define VTR_LOGVF_WARN(expr, file, line, ...)                          \
+    do {                                                               \
+        if (expr) suppress_warning(file, line, __func__, __VA_ARGS__); \
     } while (false)
 
 #define VTR_LOGVF_ERROR(expr, file, line, ...)                \
     do {                                                      \
         if (expr) vtr::printf_error(file, line, __VA_ARGS__); \
+    } while (false)
+
+// Conditional logging and custom file-line-func location macros
+#define VTR_LOGVFF_WARN(expr, file, line, func, ...)               \
+    do {                                                           \
+        if (expr) suppress_warning(file, line, func, __VA_ARGS__); \
     } while (false)
 
 //No-op version of logging macro which avoids unused parameter warnings.
@@ -128,5 +139,15 @@ extern PrintHandlerDirect printf_direct;
 void set_log_file(const char* filename);
 
 } // namespace vtr
+
+// The following data structure and functions allow to suppress noisy warnings
+// and direct them into an external file.
+static std::unordered_set<std::string> warnings_to_suppress;
+static std::string noisy_warn_log_file;
+
+void add_warnings_to_suppress(std::string function_name);
+void set_noisy_warn_log_file(const char* log_file_name);
+
+void suppress_warning(const char* pszFileName, unsigned int lineNum, const char* pszFuncName, const char* pszMessage, ...);
 
 #endif
