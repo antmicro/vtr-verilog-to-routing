@@ -109,8 +109,6 @@ function help() {
 printf "Called program with $INPUT
 	Usage:
 		${THIS_SCRIPT_EXEC} [ OPTIONS / FLAGS ]
-
-
 	OPTIONS:
 		-h|--help                       $(_prt_cur_arg off) print this
 		-t|--test < test name >         $(_prt_cur_arg ${_TEST}) Test name is one of ( ${TEST_DIR_LIST} heavy_suite light_suite full_suite vtr_basic vtr_strong pre_commit failures debug_sim debug_synth)
@@ -121,7 +119,6 @@ printf "Called program with $INPUT
 		-a|--adder_def < /abs/path >    $(_prt_cur_arg ${_ADDER_DEF}) Use template to build adders
 		-n|--simulation_count < N >     $(_prt_cur_arg ${_SIM_COUNT}) Allow to run the simulation N times to benchmark the simulator
 		-d|--output_dir < /abs/path >   $(_prt_cur_arg ${_RUN_DIR_OVERRIDE}) Change the run directory output
-
 	FLAGS:
 		-g|--generate_bench             $(_prt_cur_arg ${_GENERATE_BENCH}) Generate input and output vector for test
 		-o|--generate_output            $(_prt_cur_arg ${_GENERATE_OUTPUT}) Generate output vector for test given its input vector
@@ -132,7 +129,6 @@ printf "Called program with $INPUT
 		-b|--batch_sim                  $(_prt_cur_arg ${_BATCH_SIM}) Use Batch mode multithreaded simulation
 		-p|--perf                       $(_prt_cur_arg ${_USE_PERF}) Use Perf for monitoring execution
 		-f|--force_simulate             $(_prt_cur_arg ${_FORCE_SIM}) Force the simulation to be executed regardless of the config
-
 "
 }
 
@@ -607,6 +603,7 @@ function sim() {
 
 			for arches in ${arch_list}
 			do
+
 				arch_basename=${arches%.xml}
 				arch_name=${arch_basename##*/}
 
@@ -615,17 +612,17 @@ function sim() {
 				DIR="${NEW_RUN_DIR}/${TEST_FULL_REF}"
 				blif_file="${DIR}/odin.blif"
 
+				#build commands
+				mkdir -p $DIR
+
 				arch_cmd=""
 				if [ -e ${arches} ]
 				then
 					tiles_cmd="../vtr_flow/scripts/add_tiles.py"
 					arch_file="${arch_name}.xml"
-					${tiles_cmd} --arch_xml ${arches} > ${DIR}/${arch_name}.xml
-					arch_cmd="-a ${DIR}/${arch_name}.xml"
+					${tiles_cmd} --arch_xml ${arches} > $DIR/${arch_name}.xml
+					arch_cmd="-a $DIR/${arch_name}.xml"
 				fi
-
-				#build commands
-				mkdir -p $DIR
 
 				###############################
 				# Synthesis
@@ -643,7 +640,6 @@ function sim() {
 					then
 						wrapper_synthesis_command="${wrapper_synthesis_command} ${_perf_flag} ${DIR}/perf.data"
 					fi
-
 
 					synthesis_command="${DEFAULT_CMD_PARAM}
 										${arch_cmd}
@@ -973,3 +969,16 @@ print_time_since $START
 
 exit_program
 ### end here
+© 2019 GitHub, Inc.
+Terms
+Privacy
+Security
+Status
+Help
+Contact GitHub
+Pricing
+API
+Training
+Blog
+About
+
