@@ -931,6 +931,12 @@ static argparse::ArgumentParser create_arg_parser(std::string prog_name, t_optio
         .default_value("on")
         .show_in(argparse::ShowIn::HELP_ONLY);
 
+    gen_grp.add_argument<std::string>(args.disable_errors, "--disable_errors")
+        .help(
+            "Parses a list of functions for which the errors are going to be treated as warnings.\n"
+            "This option should be only used for development purposes.")
+        .default_value("");
+
     auto& file_grp = parser.add_argument_group("file options");
 
     file_grp.add_argument(args.BlifFile, "--circuit_file")

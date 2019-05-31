@@ -1,6 +1,9 @@
 #include <cstring>
 #include <unordered_set>
 #include <regex>
+#include <algorithm>
+#include <sstream>
+
 using namespace std;
 
 #include "vtr_assert.h"
@@ -18,7 +21,6 @@ using namespace std;
 #include "string.h"
 #include "pack_types.h"
 #include "device_grid.h"
-#include <algorithm>
 
 /* This module contains subroutines that are used in several unrelated parts *
  * of VPR.  They are VPR-specific utility routines.                          */
@@ -2231,4 +2233,16 @@ void pretty_print_float(const char* prefix, double value, int num_digits, int sc
         //Scientific
         VTR_LOG("%s%#*.*g", prefix, num_digits, scientific_precision + 1, value);
     }
+}
+
+std::vector<std::string> split_string(std::string string, char delimiter) {
+    std::vector<std::string> result;
+    std::stringstream stream(string);
+    std::string item;
+
+    while (std::getline(stream, item, delimiter)) {
+        result.push_back(item);
+    }
+
+    return result;
 }

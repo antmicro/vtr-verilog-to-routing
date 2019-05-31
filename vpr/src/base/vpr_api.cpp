@@ -213,6 +213,14 @@ void vpr_init(const int argc, const char** argv, t_options* options, t_vpr_setup
     /* Determine whether echo is on or off */
     setEchoEnabled(options->CreateEchoFile);
 
+    /*
+     * Initialize the functions names for which VPR_THROWs
+     * are demoted to VTR_LOG_WARNs
+     */
+    for (std::string func_name : split_string(options->disable_errors, ';')) {
+        map_error_activation_status(func_name);
+    }
+
     /* Read in arch and circuit */
     SetupVPR(options,
              vpr_setup->TimingEnabled,
