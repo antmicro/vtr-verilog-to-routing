@@ -74,7 +74,7 @@ void vpr_throw_opt(enum e_vpr_error type,
 
     auto result = functions_to_demote.find(func_name);
     if (result != functions_to_demote.end()) {
-        VTR_LOGF_WARN(psz_file_name, line_num, msg.data());
+        VTR_LOGFF_WARN(psz_file_name, line_num, psz_func_name, msg.data());
     } else {
         vpr_throw_msg(type, psz_file_name, line_num, msg);
     }
