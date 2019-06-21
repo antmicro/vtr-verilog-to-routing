@@ -30,8 +30,6 @@ enum e_vpr_error {
 };
 typedef enum e_vpr_error t_vpr_error_type;
 
-static std::unordered_set<std::string> functions_to_demote;
-
 /* This structure is thrown back to highest level of VPR flow if an *
  * internal VPR or user input error occurs. */
 
@@ -50,6 +48,13 @@ class VprError : public vtr::VtrError {
     t_vpr_error_type type_;
 };
 
+// Set of function names for which the VPR_THROW errors are treated
+// as VTR_LOG_WARN
+static std::unordered_set<std::string> functions_to_demote;
+
+// This function is used to save into the functions_to_demote set
+// all the function names which contain VPR_THROW errors that are
+// going to be demoted to be VTR_LOG_WARN
 void map_error_activation_status(std::string function_name);
 
 //VPR error reporting routines
