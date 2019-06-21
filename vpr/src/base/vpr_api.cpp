@@ -217,7 +217,7 @@ void vpr_init(const int argc, const char** argv, t_options* options, t_vpr_setup
      * Initialize the functions names for which VPR_THROWs
      * are demoted to VTR_LOG_WARNs
      */
-    for (std::string func_name : split_string(options->disable_errors, ';')) {
+    for (std::string func_name : split_string(options->disable_errors, ':')) {
         map_error_activation_status(func_name);
     }
 
@@ -225,10 +225,10 @@ void vpr_init(const int argc, const char** argv, t_options* options, t_vpr_setup
      * Initialize the functions names for which
      * warnings are being suppressed
      */
-    std::vector<std::string> split_warning_option = split_string(options->suppress_warnings, ':');
+    std::vector<std::string> split_warning_option = split_string(options->suppress_warnings, ',');
     if (split_warning_option.size() == 2) {
         set_noisy_warn_log_file(split_warning_option[0].data());
-        for (std::string func_name : split_string(split_warning_option[1], ';')) {
+        for (std::string func_name : split_string(split_warning_option[1], ':')) {
             add_warnings_to_suppress(func_name);
         }
     }
