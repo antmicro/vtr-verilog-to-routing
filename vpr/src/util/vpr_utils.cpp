@@ -2,7 +2,6 @@
 #include <unordered_set>
 #include <regex>
 #include <algorithm>
-#include <sstream>
 
 using namespace std;
 
@@ -2233,16 +2232,4 @@ void pretty_print_float(const char* prefix, double value, int num_digits, int sc
         //Scientific
         VTR_LOG("%s%#*.*g", prefix, num_digits, scientific_precision + 1, value);
     }
-}
-
-std::vector<std::string> split_string(std::string string, char delimiter) {
-    std::vector<std::string> result;
-    std::stringstream stream(string);
-    std::string item;
-
-    while (std::getline(stream, item, delimiter)) {
-        result.push_back(item);
-    }
-
-    return result;
 }
