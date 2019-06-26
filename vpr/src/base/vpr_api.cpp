@@ -214,6 +214,29 @@ void vpr_init(const int argc, const char** argv, t_options* options, t_vpr_setup
     /* Determine whether echo is on or off */
     setEchoEnabled(options->CreateEchoFile);
 
+    /*
+     * Initialize the functions names for which VPR_THROWs
+     * are demoted to VTR_LOG_WARNs
+     */
+    for (std::string func_name : vtr::split(options->disable_errors, std::string(":"))) {
+        map_error_activation_status(func_name);
+    }
+
+    /*
+     * Initialize the functions names for which
+     * warnings are being suppressed
+     */
+    std::vector<std::string> split_warning_option = vtr::split(options->suppress_warnings, std::string(","));
+
+    // If the file or the list of functions is not provided
+    // no warning is suppressed
+    if (split_warning_option.size() == 2) {
+        set_noisy_warn_log_file(split_warning_option[0].data());
+        for (std::string func_name : vtr::split(split_warning_option[1], std::string(":"))) {
+            add_warnings_to_suppress(func_name);
+        }
+    }
+
     /* Read in arch and circuit */
     SetupVPR(options,
              vpr_setup->TimingEnabled,
@@ -275,7 +298,7 @@ void vpr_init(const int argc, const char** argv, t_options* options, t_vpr_setup
         auto& timing_ctx = g_vpr_ctx.mutable_timing();
         {
             vtr::ScopedStartFinishTimer t("Build Timing Graph");
-            timing_ctx.graph = TimingGraphBuilder(atom_ctx.nlist, atom_ctx.lookup).timing_graph();
+            timing_ctx.graph = TimingGraphBuilder(atom_ctx.nlist, atom_ctx.lookup).timing_graph(options->allow_dangling_combinational_nodes);
             VTR_LOG("  Timing Graph Nodes: %zu\n", timing_ctx.graph->nodes().size());
             VTR_LOG("  Timing Graph Edges: %zu\n", timing_ctx.graph->edges().size());
             VTR_LOG("  Timing Graph Levels: %zu\n", timing_ctx.graph->levels().size());
@@ -637,7 +660,9 @@ RouteStatus vpr_route_flow(t_vpr_setup& vpr_setup, const t_arch& arch) {
         std::string graphics_msg;
         if (route_status.success()) {
             //Sanity check the routing
-            check_route(router_opts.route_type);
+            if (!router_opts.disable_check_route) {
+                check_route(router_opts.route_type);
+            }
             get_serial_num();
 
             //Update status
