@@ -41,8 +41,13 @@ file(GLOB_RECURSE LIB_SOURCES src/*/*.cpp)
 file(GLOB_RECURSE LIB_HEADERS src/*/*.h)
 files_to_dirs(LIB_HEADERS LIB_INCLUDE_DIRS)
 
+if(${VTR_ENABLE_CAPNPROTO})
+    add_definitions("-DVTR_ENABLE_CAPNPROTO")
+endif()
+
 #Create the library
 add_library(libvpr STATIC
+             ${CAPNP_SRCS}
              ${LIB_HEADERS}
              ${LIB_SOURCES}
 )
@@ -56,14 +61,19 @@ target_link_libraries(libvpr
                         libarchfpga
                         libsdcparse
                         libblifparse
-			libeasygl
+                        libeasygl
                         libtatum
                         libargparse
-                        libpugixml)
+                        libpugixml
+                        )
+
+if(${VTR_ENABLE_CAPNPROTO})
+    target_link_libraries(libvpr libvtrcapnproto)
+endif()
 
 #link graphics library only when graphics set to on
 if (VPR_USE_EZGL STREQUAL "on")
-    target_link_libraries(libvpr 
+    target_link_libraries(libvpr
 			     ezgl)
 
     compile_gresources(
