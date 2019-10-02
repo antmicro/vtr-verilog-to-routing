@@ -2283,34 +2283,6 @@ void place_sync_external_block_connections(ClusterBlockId iblk) {
     place_ctx.block_locs[iblk].nets_and_pins_synced_to_z_coordinate = true;
 }
 
-void update_physical_pin_indices() {
-    auto& cluster_ctx = g_vpr_ctx.mutable_clustering();
-    auto& clb_nlist = cluster_ctx.clb_nlist;
-
-    for (auto blk : clb_nlist.blocks()) {
-        auto logical_block = clb_nlist.block_type(blk);
-        auto physical_tile = physical_tile_type(blk);
-
-        // Physical tile and logical block are already compatible
-        if (physical_tile == physical_tile_type(logical_block)) {
-            continue;
-        }
-
-        for (auto pin : clb_nlist.block_pins(blk)) {
-            int block_pin = clb_nlist.pin_logical_index(pin);
-
-            auto pin_directs_map = physical_tile->tile_block_pin_directs_map;
-            auto map_result = pin_directs_map.find(logical_block->index);
-            std::unordered_map<int, int> map = map_result->second;
-
-            auto pin_result = map.find(block_pin);
-            auto phys_pin = pin_result->second;
-
-            clb_nlist.set_pin_physical_index(pin, phys_pin);
-        }
-    }
-}
-
 int get_max_num_pins(t_logical_block_type_ptr logical_block) {
     int max_num_pins = 0;
 
