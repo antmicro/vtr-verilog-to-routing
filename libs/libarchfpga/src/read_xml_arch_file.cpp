@@ -812,9 +812,9 @@ static void LoadPinLoc(pugi::xml_node Locations,
                 for (e_side side : {TOP, RIGHT, BOTTOM, LEFT}) {
                     for (int pin = 0; pin < type->num_pin_loc_assignments[width][height][side]; ++pin) {
                         auto pin_range = ProcessPinString<t_physical_tile_type_ptr>(Locations,
-                                                                                       type,
-                                                                                       type->pin_loc_assignments[width][height][side][pin],
-                                                                                       loc_data);
+                                                                                    type,
+                                                                                    type->pin_loc_assignments[width][height][side][pin],
+                                                                                    loc_data);
 
                         for (int pin_num = pin_range.first; pin_num < pin_range.second; ++pin_num) {
                             VTR_ASSERT(pin_num < type->num_pins / type->capacity);
@@ -4747,7 +4747,6 @@ e_side string_to_side(std::string side_str) {
 
 static void link_physical_logical_types(std::vector<t_physical_tile_type>& PhysicalTileTypes,
                                         std::vector<t_logical_block_type>& LogicalBlockTypes) {
-
     for (auto& physical_tile : PhysicalTileTypes) {
         if (physical_tile.index == EMPTY_TYPE_INDEX) continue;
 

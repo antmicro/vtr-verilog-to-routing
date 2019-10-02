@@ -220,7 +220,6 @@ std::string block_type_pin_index_to_name(t_physical_tile_type_ptr type, int pin_
 
     int curr_index = 0;
     for (auto const port : type->ports) {
-
         if (curr_index + port.num_pins > pin_index) {
             //This port contains the desired pin index
             int index_in_port = pin_index - curr_index;
@@ -766,8 +765,10 @@ t_logical_block_type_ptr infer_logic_block_type(const DeviceGrid& grid) {
         int lhs_num_instances = 0;
         int rhs_num_instances = 0;
         // Count number of instances for each type
-        for (auto type : lhs->equivalent_tiles) lhs_num_instances += grid.num_instances(type);
-        for (auto type : rhs->equivalent_tiles) rhs_num_instances += grid.num_instances(type);
+        for (auto type : lhs->equivalent_tiles)
+            lhs_num_instances += grid.num_instances(type);
+        for (auto type : rhs->equivalent_tiles)
+            rhs_num_instances += grid.num_instances(type);
         return lhs_num_instances > rhs_num_instances;
     };
     std::stable_sort(logic_block_candidates.begin(), logic_block_candidates.end(), by_desc_grid_count);
@@ -841,7 +842,7 @@ InstPort parse_inst_port(std::string str) {
     int num_pins = OPEN;
     for (auto physical_port : blk_type->ports) {
         if (0 == strcmp(inst_port.port_name().c_str(), physical_port.name)) {
-            num_pins =  physical_port.num_pins;
+            num_pins = physical_port.num_pins;
             break;
         }
     }
@@ -890,7 +891,6 @@ int find_pin(t_physical_tile_type_ptr type, std::string port_name, int pin_index
     int num_pins = OPEN;
 
     for (auto port : type->ports) {
-
         if (port.name == port_name) {
             num_pins = port.num_pins;
             break;
