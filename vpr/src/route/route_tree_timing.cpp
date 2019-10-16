@@ -287,6 +287,7 @@ add_subtree_to_route_tree(t_heap* hptr, t_rt_node** sink_rt_node_ptr) {
     downstream_rt_node = sink_rt_node;
 
     std::unordered_set<int> main_branch_visited;
+    std::unordered_set<int> all_visited;
     inode = hptr->u.prev.node;
     t_edge_size iedge = hptr->u.prev.edge;
     short iswitch = device_ctx.rr_nodes[inode].edge_switch(iedge);
@@ -297,9 +298,15 @@ add_subtree_to_route_tree(t_heap* hptr, t_rt_node** sink_rt_node_ptr) {
 
     while (rr_node_to_rt_node[inode] == nullptr) { //Not connected to existing routing
         main_branch_visited.insert(inode);
+        all_visited.insert(inode);
 
         linked_rt_edge = alloc_linked_rt_edge();
         linked_rt_edge->child = downstream_rt_node;
+
+        // Also mark downstream_rt_node->inode as visited to prevent
+        // add_non_configurable_to_route_tree from potentially adding
+        // downstream_rt_node to the rt tree twice.
+        all_visited.insert(downstream_rt_node->inode);
         linked_rt_edge->iswitch = iswitch;
         linked_rt_edge->next = nullptr;
 
@@ -340,7 +347,6 @@ add_subtree_to_route_tree(t_heap* hptr, t_rt_node** sink_rt_node_ptr) {
 
     //Expand (recursively) each of the main-branch nodes adding any
     //non-configurably connected nodes
-    std::unordered_set<int> all_visited = main_branch_visited;
     for (int rr_node : main_branch_visited) {
         add_non_configurable_to_route_tree(rr_node, false, all_visited);
     }
