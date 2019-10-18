@@ -21,6 +21,7 @@
 #include "router_lookahead.h"
 #include "place_macro.h"
 #include "compressed_grid.h"
+#include "connection_box.h"
 
 //A Context is collection of state relating to a particular part of VPR
 //
@@ -120,7 +121,10 @@ struct DeviceContext : public Context {
     /* Special pointers to identify special blocks on an FPGA: I/Os, unused, and default */
     std::set<t_physical_tile_type_ptr> input_types;
     std::set<t_physical_tile_type_ptr> output_types;
-    t_physical_tile_type_ptr EMPTY_TYPE;
+
+    /* Empty types */
+    t_physical_tile_type_ptr EMPTY_PHYSICAL_TILE_TYPE;
+    t_logical_block_type_ptr EMPTY_LOGICAL_BLOCK_TYPE;
 
     /* block_types are blocks that can be moved by the placer
      * such as: I/Os, CLBs, memories, multipliers, etc
@@ -199,6 +203,8 @@ struct DeviceContext : public Context {
     // Name of rrgraph file read (if any).
     // Used to determine when reading rrgraph if file is already loaded.
     std::string read_rr_graph_filename;
+
+    ConnectionBoxes connection_boxes;
 };
 
 //State relating to power analysis
@@ -285,7 +291,7 @@ struct RoutingContext : public Context {
     // Cache of router lookahead object.
     //
     // Cache key: (lookahead type, read lookahead (if any), segment definitions).
-    vtr::Cache<std::tuple<e_router_lookahead, std::string, std::vector<t_segment_inf>>,
+    vtr::Cache<std::tuple<e_router_lookahead, std::string, std::vector<t_segment_inf>, std::string>,
                RouterLookahead>
         cached_router_lookahead_;
 };

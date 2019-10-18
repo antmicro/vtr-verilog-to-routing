@@ -97,7 +97,8 @@ static void do_one_route(int source_node, int sink_node,
             router_opts.lookahead_type,
             router_opts.write_router_lookahead,
             router_opts.read_router_lookahead,
-            segment_inf
+            segment_inf,
+            router_opts.lookahead_search_locations
             );
     t_heap* cheapest = timing_driven_route_connection_from_route_tree(rt_root, sink_node, cost_params, bounding_box, *router_lookahead, modified_rr_node_inf, router_stats);
 
@@ -139,7 +140,8 @@ static void profile_source(int source_rr_node,
             router_opts.lookahead_type,
             router_opts.write_router_lookahead,
             router_opts.read_router_lookahead,
-            segment_inf
+            segment_inf,
+            router_opts.lookahead_search_locations
             );
     RouterDelayProfiler profiler(router_lookahead.get());
 
@@ -154,7 +156,7 @@ static void profile_source(int source_rr_node,
 
     for (int sink_x = start_x; sink_x <= end_x; sink_x++) {
         for (int sink_y = start_y; sink_y <= end_y; sink_y++) {
-            if(device_ctx.grid[sink_x][sink_y].type == device_ctx.EMPTY_TYPE) {
+            if(device_ctx.grid[sink_x][sink_y].type == device_ctx.EMPTY_PHYSICAL_TILE_TYPE) {
                 continue;
             }
 
@@ -220,7 +222,7 @@ static t_chan_width setup_chan_width(t_router_opts router_opts,
     if (router_opts.fixed_channel_width == NO_FIXED_CHANNEL_WIDTH) {
         auto& device_ctx = g_vpr_ctx.device();
 
-        auto type = physical_tile_type(find_most_common_block_type(device_ctx.grid));
+        auto type = find_most_common_tile_type(device_ctx.grid);
 
         width_fac = 4 * type->num_pins;
         /*this is 2x the value that binary search starts */
