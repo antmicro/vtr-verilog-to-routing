@@ -652,6 +652,11 @@ void ConnectionBoxMapLookahead::compute(const std::vector<t_segment_inf>& segmen
     RoutingCosts all_delay_costs;
     RoutingCosts all_base_costs;
 
+    std::vector<std::string> const_blocks = {"BYP_L", "FAN_L"};
+    const std::string delay_key = "DELAY";
+    const std::string base_key = "BASE";
+    std::map<std::string, std::map<std::string, RoutingCosts>> const_maps;
+
     /* run Dijkstra's algorithm for each segment type & channel type combination */
 #if defined(VPR_USE_TBB)
     tbb::mutex all_costs_mutex;
@@ -666,79 +671,122 @@ void ConnectionBoxMapLookahead::compute(const std::vector<t_segment_inf>& segmen
         std::vector<bool> node_expanded(device_ctx.rr_nodes.size());
         std::vector<util::Search_Path> paths(device_ctx.rr_nodes.size());
 
-        for (auto& point : region.points) {
-            // statistics
-            vtr::Timer run_timer;
-            float max_delay_cost = 0.f;
-            float max_base_cost = 0.f;
-            int path_count = 0;
-            for (auto node_ind : point.nodes) {
-                {
-                    auto result = run_dijkstra<util::PQ_Entry_Delay>(node_ind, &node_expanded, &paths, &delay_costs);
-                    max_delay_cost = std::max(max_delay_cost, result.first);
-                    path_count += result.second;
-                }
-                {
-                    auto result = run_dijkstra<util::PQ_Entry_Base_Cost>(node_ind, &node_expanded, &paths, &base_costs);
-                    max_base_cost = std::max(max_base_cost, result.first);
-                    path_count += result.second;
-                }
-            }
+        bool is_const_block = false;
+        std::string toFind(segment_inf[region.segment_type].name.c_str());
+        std::vector<std::string>::iterator it = std::find(const_blocks.begin(), const_blocks.end(), toFind);
+        is_const_block = it != const_blocks.end();
 
-            if (path_count > 0) {
-                VTR_LOG("Expanded %d paths of segment type %s(%d) starting at (%d, %d) from %d segments, max_cost %e %e (%g paths/sec)\n",
-                        path_count, segment_inf[region.segment_type].name.c_str(), region.segment_type,
-                        point.location.x(), point.location.y(),
-                        (int)point.nodes.size(),
-                        max_delay_cost, max_base_cost,
-                        path_count / run_timer.elapsed_sec());
-            }
-
-            /*
-             * if (path_count == 0) {
-             * for (auto node_ind : point.nodes) {
-             * VTR_LOG("Expanded node %s\n", describe_rr_node(node_ind).c_str());
-             * }
-             * }
-             */
-
-            total_path_count += path_count;
-            if (total_path_count > MIN_PATH_COUNT) {
-                break;
-            }
-        }
-
+        if (is_const_block && const_maps.find(toFind) != const_maps.end()) {
 #if defined(VPR_USE_TBB)
-        all_costs_mutex.lock();
+            all_costs_mutex.lock();
+#endif
+            for (const auto& cost : const_maps[toFind][delay_key]) {
+                const auto& val = cost.second;
+                auto result = all_delay_costs.insert(std::make_pair(cost.first, val));
+                if (!result.second) {
+                    // implements REPRESENTATIVE_ENTRY_METHOD == SMALLEST
+                    result.first->second = std::min(result.first->second, val);
+                }
+            }
+            for (const auto& cost : const_maps[toFind][base_key]) {
+                const auto& val = cost.second;
+                auto result = all_base_costs.insert(std::make_pair(cost.first, val));
+                if (!result.second) {
+                    // implements REPRESENTATIVE_ENTRY_METHOD == SMALLEST
+                    result.first->second = std::min(result.first->second, val);
+                }
+            }
+#if defined(VPR_USE_TBB)
+            all_costs_mutex.unlock();
+#endif
+        } else {
+            for (auto& point : region.points) {
+                // statistics
+                vtr::Timer run_timer;
+                float max_delay_cost = 0.f;
+                float max_base_cost = 0.f;
+                int path_count = 0;
+                for (auto node_ind : point.nodes) {
+                    {
+                        auto result = run_dijkstra<util::PQ_Entry_Delay>(node_ind, &node_expanded, &paths, &delay_costs);
+                        max_delay_cost = std::max(max_delay_cost, result.first);
+                        path_count += result.second;
+                    }
+                    {
+                        auto result = run_dijkstra<util::PQ_Entry_Base_Cost>(node_ind, &node_expanded, &paths, &base_costs);
+                        max_base_cost = std::max(max_base_cost, result.first);
+                        path_count += result.second;
+                    }
+                }
+
+                if (path_count > 0) {
+                    VTR_LOG("Expanded %d paths of segment type %s(%d) starting at (%d, %d) from %d segments, max_cost %e %e (%g paths/sec)\n",
+                            path_count, segment_inf[region.segment_type].name.c_str(), region.segment_type,
+                            point.location.x(), point.location.y(),
+                            (int)point.nodes.size(),
+                            max_delay_cost, max_base_cost,
+                            path_count / run_timer.elapsed_sec());
+                }
+
+                /*
+                 * if (path_count == 0) {
+                 * for (auto node_ind : point.nodes) {
+                 * VTR_LOG("Expanded node %s\n", describe_rr_node(node_ind).c_str());
+                 * }
+                 * }
+                 */
+
+                total_path_count += path_count;
+                if (total_path_count > MIN_PATH_COUNT) {
+                    break;
+                }
+            }
+#if defined(VPR_USE_TBB)
+            all_costs_mutex.lock();
 #endif
 
-        if (total_path_count == 0) {
-            VTR_LOG_WARN("No paths found for sample region %s(%d, %d)\n",
-                         segment_inf[region.segment_type].name.c_str(), region.grid_location.x(), region.grid_location.y());
-        }
+            if (total_path_count == 0) {
+                VTR_LOG_WARN("No paths found for sample region %s(%d, %d)\n",
+                             segment_inf[region.segment_type].name.c_str(), region.grid_location.x(), region.grid_location.y());
+            }
 
-        // combine the cost map from this run with the final cost maps for each segment
-        for (const auto& cost : delay_costs) {
-            const auto& val = cost.second;
-            auto result = all_delay_costs.insert(std::make_pair(cost.first, val));
-            if (!result.second) {
-                // implements REPRESENTATIVE_ENTRY_METHOD == SMALLEST
-                result.first->second = std::min(result.first->second, val);
+            // combine the cost map from this run with the final cost maps for each segment
+            for (const auto& cost : delay_costs) {
+                const auto& val = cost.second;
+                auto result = all_delay_costs.insert(std::make_pair(cost.first, val));
+                if (!result.second) {
+                    // implements REPRESENTATIVE_ENTRY_METHOD == SMALLEST
+                    result.first->second = std::min(result.first->second, val);
+                }
             }
-        }
-        for (const auto& cost : base_costs) {
-            const auto& val = cost.second;
-            auto result = all_base_costs.insert(std::make_pair(cost.first, val));
-            if (!result.second) {
-                // implements REPRESENTATIVE_ENTRY_METHOD == SMALLEST
-                result.first->second = std::min(result.first->second, val);
+            if (is_const_block && total_path_count > 0) {
+                if (const_maps[toFind].find(delay_key) == const_maps[toFind].end()) {
+                    std::map<std::string, RoutingCosts> delay_map = {{delay_key, delay_costs}};
+                    const_maps.insert({toFind, delay_map});
+                }
             }
-        }
+            for (const auto& cost : base_costs) {
+                const auto& val = cost.second;
+                auto result = all_base_costs.insert(std::make_pair(cost.first, val));
+                if (!result.second) {
+                    // implements REPRESENTATIVE_ENTRY_METHOD == SMALLEST
+                    result.first->second = std::min(result.first->second, val);
+                }
+            }
+            if (is_const_block && total_path_count > 0) {
+                if (const_maps[toFind].find(base_key) == const_maps[toFind].end()) {
+                    std::cout<<toFind<<std::endl;
+                    std::map<std::string, RoutingCosts> base_map = {{base_key, base_costs}};
+                    const_maps.insert({toFind, base_map});
+                }
+            }
 
 #if defined(VPR_USE_TBB)
-        all_costs_mutex.unlock();
+            all_costs_mutex.unlock();
+        }
     });
 #else
+        }
     }
 #endif
 
