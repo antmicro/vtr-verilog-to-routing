@@ -775,7 +775,6 @@ void ConnectionBoxMapLookahead::compute(const std::vector<t_segment_inf>& segmen
             }
             if (is_const_block && total_path_count > 0) {
                 if (const_maps[toFind].find(base_key) == const_maps[toFind].end()) {
-                    std::cout<<toFind<<std::endl;
                     std::map<std::string, RoutingCosts> base_map = {{base_key, base_costs}};
                     const_maps.insert({toFind, base_map});
                 }
