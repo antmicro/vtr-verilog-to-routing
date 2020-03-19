@@ -42,6 +42,8 @@
 
 #define CONNECTION_BOX_LOOKAHEAD_MAP_PRINT_COST_MAPS
 
+//#define ANALYZE_COST_MAP_DUPLICATION
+
 // Sample based an NxN grid of starting segments, where N = SAMPLE_GRID_SIZE
 static constexpr int SAMPLE_GRID_SIZE = 3;
 
@@ -652,7 +654,13 @@ void ConnectionBoxMapLookahead::compute(const std::vector<t_segment_inf>& segmen
     RoutingCosts all_delay_costs;
     RoutingCosts all_base_costs;
 
-    std::vector<std::string> const_blocks = {"BYP_L", "FAN_L"};
+#if defined(ANALYZE_COST_MAP_DUPLICATION)
+    std::map<std::string, std::vector<RoutingCosts>> all_mapped_delay_costs;
+    std::map<std::string, std::vector<RoutingCosts>> all_mapped_base_costs;
+    std::vector<std::string> const_blocks = {"NO_MAP_COPY"};
+#else
+    std::vector<std::string> const_blocks = {"BYP_L", "FAN_L", "INPINFEED"};
+#endif
     const std::string delay_key = "DELAY";
     const std::string base_key = "BASE";
     std::map<std::string, std::map<std::string, RoutingCosts>> const_maps;
@@ -749,6 +757,24 @@ void ConnectionBoxMapLookahead::compute(const std::vector<t_segment_inf>& segmen
                 VTR_LOG_WARN("No paths found for sample region %s(%d, %d)\n",
                              segment_inf[region.segment_type].name.c_str(), region.grid_location.x(), region.grid_location.y());
             }
+#if defined(ANALYZE_COST_MAP_DUPLICATION)
+            else {
+                if (all_mapped_delay_costs.find(toFind) == all_mapped_delay_costs.end()) {
+                    std::vector<RoutingCosts> temp;
+                    temp.push_back(delay_costs);
+                    all_mapped_delay_costs.insert({toFind, temp});
+                } else {
+                    all_mapped_delay_costs[toFind].push_back(delay_costs);
+                }
+                if (all_mapped_base_costs.find(toFind) == all_mapped_base_costs.end()) {
+                    std::vector<RoutingCosts> temp;
+                    temp.push_back(base_costs);
+                    all_mapped_base_costs.insert({toFind, temp});
+                } else {
+                    all_mapped_base_costs[toFind].push_back(base_costs);
+                }
+            }
+#endif
 
             // combine the cost map from this run with the final cost maps for each segment
             for (const auto& cost : delay_costs) {
@@ -772,6 +798,7 @@ void ConnectionBoxMapLookahead::compute(const std::vector<t_segment_inf>& segmen
                     // implements REPRESENTATIVE_ENTRY_METHOD == SMALLEST
                     result.first->second = std::min(result.first->second, val);
                 }
+
             }
             if (is_const_block && total_path_count > 0) {
                 if (const_maps[toFind].find(base_key) == const_maps[toFind].end()) {
@@ -788,6 +815,68 @@ void ConnectionBoxMapLookahead::compute(const std::vector<t_segment_inf>& segmen
         }
     }
 #endif
+
+#if defined(ANALYZE_COST_MAP_DUPLICATION)
+    std::vector<std::string> const_block_candidates;
+    std::vector<std::string> const_blocks_names;
+
+    for (auto& entry : all_mapped_delay_costs) {
+        bool map_match = false;
+        for (unsigned long i = 0; i < (entry.second.size() - 1); i++) {
+            map_match = true;
+            for (unsigned long j = i + 1; j < entry.second.size(); j++) {
+                for (auto& cost : entry.second[i]) {
+                    if (entry.second[j].find(cost.first) == entry.second[j].end()) {
+                        map_match = false;
+                        goto next_delay_block;
+                    } else {
+                        if (entry.second[j][cost.first] != cost.second) {
+                            map_match = false;
+                            goto next_delay_block;
+                        }
+                    }
+                }
+            }
+        }
+        if (map_match) {
+            const_block_candidates.push_back(entry.first);
+        }
+next_delay_block:
+        continue;
+    }
+
+    for (auto& candidate : const_block_candidates) {
+        auto& entry = all_mapped_base_costs[candidate];
+        bool map_match = true;
+        for (unsigned long i = 0; i < (entry.size() - 1); i++) {
+            for (unsigned long j = i + 1; j < entry.size(); j++) {
+                for (auto& cost : entry[i]) {
+                    if (entry[j].find(cost.first) == entry[j].end()) {
+                        map_match = false;
+                        goto next_base_block;
+                    } else {
+                        if (entry[j][cost.first] != cost.second) {
+                            map_match = false;
+                            goto next_base_block;
+                        }
+                    }
+                }
+            }
+        }
+        if (map_match) {
+            const_blocks_names.push_back(candidate);
+        }
+next_base_block:
+        continue;
+    }
+
+    VTR_LOG("Blocks with duplicated cost maps:\n\r");
+    for (auto& name : const_blocks_names) {
+        std::cout<<name<<std::endl;
+    }
+#endif
+
+    return;
 
     VTR_LOG("Combining results\n");
     /* boil down the cost list in routing_cost_map at each coordinate to a
