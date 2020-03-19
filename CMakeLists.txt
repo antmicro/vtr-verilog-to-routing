@@ -31,6 +31,7 @@ option(VTR_ENABLE_SANITIZE "Enable address/leak/undefined-behaviour sanitizers (
 option(VTR_ENABLE_PROFILING "Enable performance profiler (gprof)" OFF)
 option(VTR_ENABLE_COVERAGE "Enable code coverage tracking (gcov)" OFF)
 option(VTR_ENABLE_DEBUG_LOGGING "Enable debug logging" OFF)
+option(VTR_ENABLE_COST_MAP_DUPLICATION_ANALYSIS "Enable cost map duplication analysis. Analysis is ran during lookahead generation and results are saved to file: <architecture>_duplicated_cost_map_blocks.log" OFF)
 
 #Allow the user to decide weather to compile the graphics library
 set(VPR_USE_EZGL "auto" CACHE STRING "Specify whether vpr uses the graphics library")
@@ -236,6 +237,16 @@ if(VTR_ENABLE_PROFILING)
     #Enable gprof
     set(PROFILING_FLAGS "-g -pg")
     message(STATUS "Profiling Flags: ${PROFILING_FLAGS}")
+endif()
+
+#
+# Analysis of duplicated cost maps
+#
+
+if(VTR_ENABLE_COST_MAP_DUPLICATION_ANALYSIS)
+    #Enable ANALYZE_COST_MAP_DUPLICATION
+    add_compile_definitions(ANALYZE_COST_MAP_DUPLICATION)
+    message(STATUS "Analysis of duplicated cost maps: enabled")
 endif()
 
 #

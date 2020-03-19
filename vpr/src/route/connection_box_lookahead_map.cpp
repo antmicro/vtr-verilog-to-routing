@@ -42,8 +42,6 @@
 
 #define CONNECTION_BOX_LOOKAHEAD_MAP_PRINT_COST_MAPS
 
-//#define ANALYZE_COST_MAP_DUPLICATION
-
 // Sample based an NxN grid of starting segments, where N = SAMPLE_GRID_SIZE
 static constexpr int SAMPLE_GRID_SIZE = 3;
 
