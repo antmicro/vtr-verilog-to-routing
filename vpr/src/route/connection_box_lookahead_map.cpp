@@ -29,6 +29,10 @@
 #    include <tbb/mutex.h>
 #endif
 
+#if defined(ANALYZE_COST_MAP_DUPLICATION)
+#    include <fstream>
+#endif
+
 /* we're profiling routing cost over many tracks for each wire type, so we'll
  * have many cost entries at each |dx|,|dy| offset. There are many ways to
  * "boil down" the many costs at each offset to a single entry for a given
@@ -644,6 +648,7 @@ void ConnectionBoxMapLookahead::compute(const std::vector<t_segment_inf>& segmen
 
     /* free previous delay map and allocate new one */
     auto& device_ctx = g_vpr_ctx.device();
+
     cost_map_.set_counts(segment_inf.size(),
                          device_ctx.connection_boxes.num_connection_box_types());
     cost_map_.build_segment_map();
@@ -824,13 +829,18 @@ void ConnectionBoxMapLookahead::compute(const std::vector<t_segment_inf>& segmen
             map_match = true;
             for (unsigned long j = i + 1; j < entry.second.size(); j++) {
                 for (auto& cost : entry.second[i]) {
-                    if (entry.second[j].find(cost.first) == entry.second[j].end()) {
+                    if (entry.second[j].size() != entry.second[i].size()) {
                         map_match = false;
                         goto next_delay_block;
                     } else {
-                        if (entry.second[j][cost.first] != cost.second) {
+                        if (entry.second[j].find(cost.first) == entry.second[j].end()) {
                             map_match = false;
                             goto next_delay_block;
+                        } else {
+                            if (entry.second[j][cost.first] != cost.second) {
+                                map_match = false;
+                                goto next_delay_block;
+                            }
                         }
                     }
                 }
@@ -868,13 +878,18 @@ next_base_block:
         continue;
     }
 
+    std::string fname = device_ctx.grid.name() + "_duplicated_cost_map_blocks";
+    std::ofstream fblocks;
+    fblocks.open(fname);
     VTR_LOG("Blocks with duplicated cost maps:\n\r");
     for (auto& name : const_blocks_names) {
+        fblocks<<name<<std::endl;
         std::cout<<name<<std::endl;
     }
-#endif
+    fblocks.close();
 
     return;
+#endif
 
     VTR_LOG("Combining results\n");
     /* boil down the cost list in routing_cost_map at each coordinate to a
