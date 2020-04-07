@@ -26,6 +26,12 @@
 #include <sstream>
 #include <vector>
 
+#ifdef __APPLE__
+// When included on Linux, it gives the `basename` implementation that changes the content of the passed argument.
+// On macOS there is no GNU implementation, but libgen does not necessarily modify the buffer, so it's safe to use it.
+#include <libgen.h>
+#endif
+
 #include "vtr_error.h"
 #include "vtr_time.h"
 #include "odin_ii.h"
