@@ -2,6 +2,7 @@
 #define VTR_SMALL_VECTOR
 #include <memory>
 #include <algorithm>
+#include <array>
 #include <limits>
 #include <cstdint>
 #include "vtr_assert.h"
