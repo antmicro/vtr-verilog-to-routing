@@ -1,5 +1,6 @@
 #include <fstream>
 #include <sstream>
+#include <cmath>
 
 #include "vtr_log.h"
 #include "vtr_assert.h"
@@ -29,7 +30,7 @@ tatum::TimingPathInfo find_longest_critical_path_delay(const tatum::TimingConstr
 
     //Record the maximum critical path accross all domain pairs
     for (const auto& path_info : cpds) {
-        if (crit_path_info.delay() < path_info.delay() || std::isnan(crit_path_info.delay())) {
+        if (crit_path_info.delay() < path_info.delay() || std::isnan(float(crit_path_info.delay()))) {
             crit_path_info = path_info;
         }
     }
@@ -46,7 +47,7 @@ tatum::TimingPathInfo find_least_slack_critical_path_delay(const tatum::TimingCo
 
     //Record the maximum critical path accross all domain pairs
     for (const auto& path_info : cpds) {
-        if (path_info.slack() < crit_path_info.slack() || std::isnan(crit_path_info.slack())) {
+        if (path_info.slack() < crit_path_info.slack() || std::isnan(float(crit_path_info.slack()))) {
             crit_path_info = path_info;
         }
     }
