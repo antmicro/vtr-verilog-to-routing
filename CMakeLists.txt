@@ -244,8 +244,8 @@ endif()
 #
 
 if(VTR_ENABLE_COST_MAP_DUPLICATION_ANALYSIS)
-    #Enable ANALYZE_COST_MAP_DUPLICATION
-    add_compile_definitions(ANALYZE_COST_MAP_DUPLICATION)
+    #Enable VPR_ANALYZE_COST_MAP_DUPLICATION
+    add_compile_definitions(VPR_ANALYZE_COST_MAP_DUPLICATION)
     message(STATUS "Analysis of duplicated cost maps: enabled")
 endif()
 

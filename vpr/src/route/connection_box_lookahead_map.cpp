@@ -29,7 +29,7 @@
 #    include <tbb/mutex.h>
 #endif
 
-#if defined(ANALYZE_COST_MAP_DUPLICATION)
+#if defined(VPR_ANALYZE_COST_MAP_DUPLICATION)
 #    include <fstream>
 #endif
 
@@ -657,11 +657,12 @@ void ConnectionBoxMapLookahead::compute(const std::vector<t_segment_inf>& segmen
     RoutingCosts all_delay_costs;
     RoutingCosts all_base_costs;
 
-#if defined(ANALYZE_COST_MAP_DUPLICATION)
+#if defined(VPR_ANALYZE_COST_MAP_DUPLICATION)
     std::map<std::string, std::vector<RoutingCosts>> all_mapped_delay_costs;
     std::map<std::string, std::vector<RoutingCosts>> all_mapped_base_costs;
     std::vector<std::string> const_blocks = {"NO_MAP_COPY"};
 #else
+    // FIXME: TODO: These segment names are hard-coded just for testing purposes
     std::vector<std::string> const_blocks = {"BYP_L", "FAN_L", "INPINFEED"};
 #endif
     const std::string delay_key = "DELAY";
@@ -760,7 +761,7 @@ void ConnectionBoxMapLookahead::compute(const std::vector<t_segment_inf>& segmen
                 VTR_LOG_WARN("No paths found for sample region %s(%d, %d)\n",
                              segment_inf[region.segment_type].name.c_str(), region.grid_location.x(), region.grid_location.y());
             }
-#if defined(ANALYZE_COST_MAP_DUPLICATION)
+#if defined(VPR_ANALYZE_COST_MAP_DUPLICATION)
             else {
                 if (all_mapped_delay_costs.find(toFind) == all_mapped_delay_costs.end()) {
                     std::vector<RoutingCosts> temp;
@@ -819,7 +820,7 @@ void ConnectionBoxMapLookahead::compute(const std::vector<t_segment_inf>& segmen
     }
 #endif
 
-#if defined(ANALYZE_COST_MAP_DUPLICATION)
+#if defined(VPR_ANALYZE_COST_MAP_DUPLICATION)
     std::vector<std::string> const_block_candidates;
     std::vector<std::string> const_blocks_names;
 
